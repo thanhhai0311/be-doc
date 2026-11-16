@@ -1,6 +1,6 @@
 # Sổ tay Backend
 
-Tài liệu tiếng Việt, trình bày dạng một trang web có 5 tab:
+Tài liệu tiếng Việt, trình bày dạng một trang web có 7 tab:
 
 | Tab | Nội dung |
 |---|---|
@@ -9,6 +9,8 @@ Tài liệu tiếng Việt, trình bày dạng một trang web có 5 tab:
 | **RabbitMQ** | Exchange, queue type, confirm/ack, DLX, retry + cách dùng trong NestJS và Java + pattern |
 | **Kafka** | Topic/partition/consumer group, delivery semantics, transaction, share group + NestJS/Java/Spring/Kafka Streams + pattern |
 | **Redis** | Kiểu dữ liệu, persistence, eviction, cluster + ioredis/Lettuce/Jedis/Redisson + pattern (cache, lock, rate limit, stream) |
+| **Sự cố** | Runbook sự cố production cho cả 5 công nghệ: triệu chứng, nguyên nhân, chẩn đoán, xử lý |
+| **Phỏng vấn** | Câu hỏi chuyên sâu theo cấp Junior / Middle / Senior kèm gợi ý trả lời |
 
 ## Xem
 
@@ -27,7 +29,7 @@ Quy ước viết trong `src/`:
 - Khối code: `<pre data-lang="ts" data-file="tên-file.ts">…</pre>` (viết code thô, script tự escape).
 - Code inline: `<c>…</c>`.
 - Mỗi chủ đề là `<section class="doc" id="…" data-group="Nhóm">` với một `<h2>`; mục lục sinh tự động.
-- ID chủ đề phải duy nhất trên toàn trang (tiền tố: Java `j-`, RabbitMQ `r-`, Kafka `k-`, Redis `rd-`).
+- ID chủ đề phải duy nhất trên toàn trang (tiền tố: Java `j-`, RabbitMQ `r-`, Kafka `k-`, Redis `rd-`, Sự cố `pr-`, Phỏng vấn `iv-`).
 
 Script dừng với lỗi nếu có link `#id` hỏng hoặc còn sót cú pháp chưa xử lý.
 

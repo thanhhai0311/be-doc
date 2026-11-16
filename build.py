@@ -8,7 +8,7 @@ Quy ước khi viết nội dung trong src/:
     <pre data-lang="ts" data-file="tên file">...</pre>   khối code, viết code thô (không cần escape < >)
     <c>...</c>                                            code inline, viết thô
     <section class="doc" id="..." data-group="Nhóm">     mỗi chủ đề; mục lục sinh tự động từ <h2>
-    <div class="panel" data-panel="tab">                  mỗi tab (nest, java, rabbit, kafka, redis)
+    <div class="panel" data-panel="tab">                  mỗi tab (nest, java, rabbit, kafka, redis, incidents, interview)
 """
 import html
 import re
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-TABS = ['nest', 'java', 'rabbit', 'kafka', 'redis']
+TABS = ['nest', 'java', 'rabbit', 'kafka', 'redis', 'incidents', 'interview']
 
 
 def render() -> str:
@@ -69,6 +69,7 @@ def render() -> str:
         src = src.replace(f'__SECTIONS_{tab}__', str(nsec)).replace(f'__CODES_{tab}__', str(seg.count('<div class="code')))
         print(f'{tab:7} {nsec:3} chủ đề')
 
+    src = src.replace('<b id="qaCount">0</b>', f'<b id="qaCount">{src.count("<details class=\"qa\"")}</b>')
     src = re.sub(r'(<section class="doc" id="[^"]+" data-group="([^"]+)">)',
                  lambda m: m.group(1) + f'<p class="group-label">{m.group(2)}</p>', src)
 

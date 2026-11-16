@@ -195,6 +195,31 @@ td code { white-space: nowrap; }
   h2 { font-size: 24px; }
   .code pre { font-size: 12.6px; }
 }
+
+/* sự cố */
+.inc { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 14px 16px; margin: 16px 0; }
+.inc h3 { margin: 0 0 10px; font-size: 17px; }
+.inc dl { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px 14px; margin: 0; }
+.inc dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 700; padding-top: 4px; }
+.inc dd { margin: 0; min-width: 0; font-size: 15px; }
+.inc dd .code { margin: 4px 0 0; }
+@media (max-width: 600px) { .inc dl { grid-template-columns: minmax(0, 1fr); gap: 2px; } .inc dd { margin-bottom: 8px; } }
+/* phỏng vấn */
+.lv-junior { background: var(--teal-soft); color: var(--teal); }
+.lv-middle { background: var(--amber-soft); color: var(--amber); }
+.lv-senior { background: var(--accent-soft); color: var(--accent); }
+.lvl-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 56px); z-index: 5; background: var(--bg); padding-block: 10px; }
+.lvl-btn { font: 600 13.5px var(--font-body); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+.lvl-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.lvl-toggle { margin-left: auto; }
+.qa { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 10px 0; }
+.qa summary { cursor: pointer; padding: 11px 14px; font-weight: 600; list-style: none; display: flex; gap: 10px; align-items: baseline; line-height: 1.5; }
+.qa summary::-webkit-details-marker { display: none; }
+.qa summary::after { content: "+"; margin-left: auto; color: var(--muted); font-weight: 700; }
+.qa[open] summary::after { content: "−"; }
+.qa[open] summary { border-bottom: 1px solid var(--line); }
+.qa summary .badge { flex: none; }
+.qa .ans { padding: 10px 14px 4px; }
 </style>
 
 <header class="topbar">
@@ -205,6 +230,8 @@ td code { white-space: nowrap; }
     <button class="tab" role="tab" id="tab-rabbit" data-tab="rabbit" aria-selected="false" type="button">RabbitMQ</button>
     <button class="tab" role="tab" id="tab-kafka" data-tab="kafka" aria-selected="false" type="button">Kafka</button>
     <button class="tab" role="tab" id="tab-redis" data-tab="redis" aria-selected="false" type="button">Redis</button>
+    <button class="tab" role="tab" id="tab-incidents" data-tab="incidents" aria-selected="false" type="button">Sự cố</button>
+    <button class="tab" role="tab" id="tab-interview" data-tab="interview" aria-selected="false" type="button">Phỏng vấn</button>
   </div>
   <div class="legend" data-for="nest">
     <span><span class="badge b-v11">v11</span> có từ Nest 11</span>
@@ -216,6 +243,11 @@ td code { white-space: nowrap; }
     <span><span class="badge b-v11">Java 21</span> bản JDK chính thức có tính năng</span>
     <span><span class="badge b-v12">preview</span> cần --enable-preview</span>
     <span><span class="badge b-pkg">lib</span> thư viện ngoài JDK</span>
+  </div>
+  <div class="legend" data-for="interview" hidden>
+    <span><span class="badge lv-junior">Junior</span></span>
+    <span><span class="badge lv-middle">Middle</span></span>
+    <span><span class="badge lv-senior">Senior</span></span>
   </div>
   <div class="legend" data-for="rabbit kafka redis" hidden>
     <span><span class="badge b-v11">4.2</span> có từ phiên bản</span>
@@ -233,6 +265,8 @@ td code { white-space: nowrap; }
   <nav class="tocNav" data-for="rabbit" hidden><!--NAV:rabbit--></nav>
   <nav class="tocNav" data-for="kafka" hidden><!--NAV:kafka--></nav>
   <nav class="tocNav" data-for="redis" hidden><!--NAV:redis--></nav>
+  <nav class="tocNav" data-for="incidents" hidden><!--NAV:incidents--></nav>
+  <nav class="tocNav" data-for="interview" hidden><!--NAV:interview--></nav>
 </aside>
 <main id="top">
 <div class="panel" data-panel="nest" role="tabpanel" aria-labelledby="tab-nest">

@@ -201,6 +201,31 @@ td code { white-space: nowrap; }
   h2 { font-size: 24px; }
   .code pre { font-size: 12.6px; }
 }
+
+/* sự cố */
+.inc { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 14px 16px; margin: 16px 0; }
+.inc h3 { margin: 0 0 10px; font-size: 17px; }
+.inc dl { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px 14px; margin: 0; }
+.inc dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 700; padding-top: 4px; }
+.inc dd { margin: 0; min-width: 0; font-size: 15px; }
+.inc dd .code { margin: 4px 0 0; }
+@media (max-width: 600px) { .inc dl { grid-template-columns: minmax(0, 1fr); gap: 2px; } .inc dd { margin-bottom: 8px; } }
+/* phỏng vấn */
+.lv-junior { background: var(--teal-soft); color: var(--teal); }
+.lv-middle { background: var(--amber-soft); color: var(--amber); }
+.lv-senior { background: var(--accent-soft); color: var(--accent); }
+.lvl-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 56px); z-index: 5; background: var(--bg); padding-block: 10px; }
+.lvl-btn { font: 600 13.5px var(--font-body); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+.lvl-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.lvl-toggle { margin-left: auto; }
+.qa { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 10px 0; }
+.qa summary { cursor: pointer; padding: 11px 14px; font-weight: 600; list-style: none; display: flex; gap: 10px; align-items: baseline; line-height: 1.5; }
+.qa summary::-webkit-details-marker { display: none; }
+.qa summary::after { content: "+"; margin-left: auto; color: var(--muted); font-weight: 700; }
+.qa[open] summary::after { content: "−"; }
+.qa[open] summary { border-bottom: 1px solid var(--line); }
+.qa summary .badge { flex: none; }
+.qa .ans { padding: 10px 14px 4px; }
 </style>
 </head>
 <body>
@@ -214,6 +239,8 @@ td code { white-space: nowrap; }
     <button class="tab" role="tab" id="tab-rabbit" data-tab="rabbit" aria-selected="false" type="button">RabbitMQ</button>
     <button class="tab" role="tab" id="tab-kafka" data-tab="kafka" aria-selected="false" type="button">Kafka</button>
     <button class="tab" role="tab" id="tab-redis" data-tab="redis" aria-selected="false" type="button">Redis</button>
+    <button class="tab" role="tab" id="tab-incidents" data-tab="incidents" aria-selected="false" type="button">Sự cố</button>
+    <button class="tab" role="tab" id="tab-interview" data-tab="interview" aria-selected="false" type="button">Phỏng vấn</button>
   </div>
   <div class="legend" data-for="nest">
     <span><span class="badge b-v11">v11</span> có từ Nest 11</span>
@@ -225,6 +252,11 @@ td code { white-space: nowrap; }
     <span><span class="badge b-v11">Java 21</span> bản JDK chính thức có tính năng</span>
     <span><span class="badge b-v12">preview</span> cần --enable-preview</span>
     <span><span class="badge b-pkg">lib</span> thư viện ngoài JDK</span>
+  </div>
+  <div class="legend" data-for="interview" hidden>
+    <span><span class="badge lv-junior">Junior</span></span>
+    <span><span class="badge lv-middle">Middle</span></span>
+    <span><span class="badge lv-senior">Senior</span></span>
   </div>
   <div class="legend" data-for="rabbit kafka redis" hidden>
     <span><span class="badge b-v11">4.2</span> có từ phiên bản</span>
@@ -242,6 +274,8 @@ td code { white-space: nowrap; }
   <nav class="tocNav" data-for="rabbit" hidden><div class="toc-group"><h4>Khái niệm</h4><ul><li data-target="r-tong-quan"><a href="#r-tong-quan">RabbitMQ là gì</a></li><li data-target="r-exchange"><a href="#r-exchange">Exchange và routing</a></li><li data-target="r-queue"><a href="#r-queue">Ba loại queue</a></li><li data-target="r-reliability"><a href="#r-reliability">Độ tin cậy: confirm, ack, prefetch</a></li><li data-target="r-dlx"><a href="#r-dlx">Dead letter, TTL, giới hạn độ dài, retry</a></li><li data-target="r-other"><a href="#r-other">Single active consumer, priority, streams</a></li></ul></div><div class="toc-group"><h4>Sử dụng</h4><ul><li data-target="r-nest"><a href="#r-nest">Dùng trong NestJS</a></li><li data-target="r-java"><a href="#r-java">Dùng trong Java</a></li></ul></div><div class="toc-group"><h4>Patterns</h4><ul><li data-target="r-p-work"><a href="#r-p-work">Work queue và Publish/Subscribe</a></li><li data-target="r-p-retry"><a href="#r-p-retry">Retry có độ trễ và parking lot</a></li><li data-target="r-p-idem"><a href="#r-p-idem">Idempotent consumer và thứ tự</a></li><li data-target="r-p-rpc"><a href="#r-p-rpc">RPC qua RabbitMQ</a></li></ul></div><div class="toc-group"><h4>Tra cứu</h4><ul><li data-target="r-checklist"><a href="#r-checklist">Checklist production</a></li></ul></div></nav>
   <nav class="tocNav" data-for="kafka" hidden><div class="toc-group"><h4>Khái niệm</h4><ul><li data-target="k-tong-quan"><a href="#k-tong-quan">Kafka là gì</a></li><li data-target="k-concepts"><a href="#k-concepts">Topic, partition, offset, consumer group</a></li><li data-target="k-producer"><a href="#k-producer">Producer</a></li><li data-target="k-consumer"><a href="#k-consumer">Consumer và commit offset</a></li><li data-target="k-semantics"><a href="#k-semantics">Đảm bảo giao nhận và exactly-once</a></li><li data-target="k-retention"><a href="#k-retention">Retention, compaction và share group</a></li><li data-target="k-cli"><a href="#k-cli">Lệnh CLI hay dùng</a></li><li data-target="k-so-sanh"><a href="#k-so-sanh">Chọn RabbitMQ, Kafka hay Redis?</a></li></ul></div><div class="toc-group"><h4>Sử dụng</h4><ul><li data-target="k-nest"><a href="#k-nest">Dùng trong NestJS</a></li><li data-target="k-java"><a href="#k-java">Dùng trong Java</a></li></ul></div><div class="toc-group"><h4>Patterns</h4><ul><li data-target="k-p-key"><a href="#k-p-key">Chọn key và thiết kế topic</a></li><li data-target="k-p-retry"><a href="#k-p-retry">Retry topic và dead-letter topic</a></li><li data-target="k-p-eos"><a href="#k-p-eos">Consume–transform–produce exactly-once</a></li><li data-target="k-p-outbox"><a href="#k-p-outbox">Outbox + CDC và idempotent consumer</a></li><li data-target="k-p-state"><a href="#k-p-state">Compacted topic làm bảng trạng thái</a></li></ul></div><div class="toc-group"><h4>Tra cứu</h4><ul><li data-target="k-checklist"><a href="#k-checklist">Checklist production</a></li></ul></div></nav>
   <nav class="tocNav" data-for="redis" hidden><div class="toc-group"><h4>Khái niệm</h4><ul><li data-target="rd-tong-quan"><a href="#rd-tong-quan">Redis là gì</a></li><li data-target="rd-types"><a href="#rd-types">Kiểu dữ liệu</a></li><li data-target="rd-commands"><a href="#rd-commands">Lệnh cốt lõi</a></li><li data-target="rd-messaging"><a href="#rd-messaging">Pub/Sub và Streams</a></li></ul></div><div class="toc-group"><h4>Vận hành</h4><ul><li data-target="rd-persistence"><a href="#rd-persistence">Persistence và eviction</a></li><li data-target="rd-ha"><a href="#rd-ha">Replication, Sentinel và Cluster</a></li><li data-target="rd-perf"><a href="#rd-perf">Hiệu năng và anti-pattern</a></li></ul></div><div class="toc-group"><h4>Sử dụng</h4><ul><li data-target="rd-nest"><a href="#rd-nest">Dùng trong NestJS (ioredis)</a></li><li data-target="rd-java"><a href="#rd-java">Dùng trong Java</a></li></ul></div><div class="toc-group"><h4>Patterns</h4><ul><li data-target="rd-p-cache"><a href="#rd-p-cache">Cache-aside và chống cache stampede</a></li><li data-target="rd-p-lock"><a href="#rd-p-lock">Distributed lock</a></li><li data-target="rd-p-ratelimit"><a href="#rd-p-ratelimit">Rate limiting</a></li><li data-target="rd-p-structures"><a href="#rd-p-structures">Bảng xếp hạng, đếm duy nhất, hàng đợi lịch</a></li><li data-target="rd-p-queue"><a href="#rd-p-queue">Hàng đợi tin cậy với Streams</a></li><li data-target="rd-p-session"><a href="#rd-p-session">Session, idempotency key, feature flag</a></li></ul></div><div class="toc-group"><h4>Tra cứu</h4><ul><li data-target="rd-checklist"><a href="#rd-checklist">Checklist production</a></li></ul></div></nav>
+  <nav class="tocNav" data-for="incidents" hidden><div class="toc-group"><h4>Chung</h4><ul><li data-target="pr-quy-trinh"><a href="#pr-quy-trinh">Quy trình khi có sự cố</a></li></ul></div><div class="toc-group"><h4>Theo công nghệ</h4><ul><li data-target="pr-nest"><a href="#pr-nest">NestJS / Node.js</a></li><li data-target="pr-java"><a href="#pr-java">Java / JVM</a></li><li data-target="pr-rabbit"><a href="#pr-rabbit">RabbitMQ</a></li><li data-target="pr-kafka"><a href="#pr-kafka">Kafka</a></li><li data-target="pr-redis"><a href="#pr-redis">Redis</a></li></ul></div></nav>
+  <nav class="tocNav" data-for="interview" hidden><div class="toc-group"><h4>Chung</h4><ul><li data-target="iv-cach-dung"><a href="#iv-cach-dung">Kỳ vọng theo cấp độ</a></li></ul></div><div class="toc-group"><h4>Theo công nghệ</h4><ul><li data-target="iv-nest"><a href="#iv-nest">NestJS / Node.js</a></li><li data-target="iv-java"><a href="#iv-java">Java</a></li><li data-target="iv-rabbit"><a href="#iv-rabbit">RabbitMQ</a></li><li data-target="iv-kafka"><a href="#iv-kafka">Kafka</a></li><li data-target="iv-redis"><a href="#iv-redis">Redis</a></li></ul></div><div class="toc-group"><h4>Thiết kế hệ thống</h4><ul><li data-target="iv-system"><a href="#iv-system">Câu hỏi tổng hợp</a></li></ul></div></nav>
 </aside>
 <main id="top">
 <div class="panel" data-panel="nest" role="tabpanel" aria-labelledby="tab-nest">
@@ -4696,7 +4730,7 @@ builder.stream("visits", Consumed.with(Serdes.String(), visitSerde))
   <p class="eyebrow">Tổng hợp từ redis.io/docs (Redis Open Source 8.x)</p>
   <h1>Sổ tay Redis</h1>
   <p class="lead">Kho dữ liệu trong bộ nhớ dùng làm cache, khóa phân tán, rate limit, hàng đợi, bảng xếp hạng. Có kiểu dữ liệu và lệnh, persistence, eviction, cluster, và các pattern kèm ví dụ cho NestJS (ioredis) và Java (Lettuce, Jedis, Spring, Redisson).</p>
-  <div class="stats"><span><b>16</b> chủ đề</span><span><b>21</b> ví dụ code</span><span>Redis Open Source <b>8.x</b></span></div>
+  <div class="stats"><span><b>16</b> chủ đề</span><span><b>16</b> ví dụ code</span><span>Redis Open Source <b>8.x</b></span></div>
 </div>
 
 <section class="doc" id="rd-tong-quan" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
@@ -5077,6 +5111,508 @@ await redis.xadd('visits', 'MAXLEN', '~', 1_000_000, '*', 'shop', shop, 'ip', ip
 </ul>
 </section>
 </div>
+<div class="panel" data-panel="incidents" role="tabpanel" aria-labelledby="tab-incidents" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Runbook xử lý sự cố</p>
+  <h1>Sự cố production</h1>
+  <p class="lead">Các lỗi hay gặp khi chạy NestJS, Java, RabbitMQ, Kafka và Redis trên production. Mỗi sự cố ghi rõ triệu chứng nhìn thấy, nguyên nhân thường gặp, lệnh/công cụ để chẩn đoán, và cách xử lý cùng phòng ngừa.</p>
+  <div class="stats"><span><b>6</b> chủ đề</span><span><b>15</b> đoạn lệnh/code</span></div>
+</div>
+
+<section class="doc" id="pr-quy-trinh" data-group="Chung"><p class="group-label">Chung</p>
+<h2>Quy trình khi có sự cố</h2>
+<ol class="pipeline">
+  <li class="k-in"><b>Giảm thiệt hại trước</b><span>Rollback bản deploy gần nhất, tắt feature flag, scale thêm, chặn traffic xấu. Tìm nguyên nhân gốc sau.</span></li>
+  <li><b>Thu thập bằng chứng trước khi restart</b><span>Restart xóa mất trạng thái lỗi. Lấy heap dump / thread dump / log / metric trước nếu còn kịp.</span></li>
+  <li class="k-guard"><b>Khoanh vùng</b><span>Bắt đầu từ lúc nào? Trùng với deploy, thay đổi cấu hình, đợt traffic hay sự cố hạ tầng nào? Một instance hay tất cả?</span></li>
+  <li class="k-int"><b>Đi theo đường đi của request</b><span>Load balancer → app → DB/cache/broker → API ngoài. Thành phần nào có độ trễ hoặc tỉ lệ lỗi tăng đầu tiên?</span></li>
+  <li class="k-pipe"><b>Sửa và xác nhận</b><span>Xác nhận bằng metric (latency, error rate, lag) trở về bình thường, không chỉ bằng "hết thấy lỗi trong log".</span></li>
+  <li class="k-core"><b>Postmortem không đổ lỗi</b><span>Dòng thời gian, nguyên nhân gốc, vì sao không phát hiện sớm, hành động phòng ngừa có người chịu trách nhiệm.</span></li>
+</ol>
+<div class="note tip"><span class="nt">Bốn tín hiệu vàng</span><p>Mọi service nên có dashboard cho <strong>latency</strong> (p50/p95/p99), <strong>traffic</strong>, <strong>error rate</strong>, <strong>saturation</strong> (CPU, RAM, pool kết nối, độ dài queue, consumer lag). Hầu hết sự cố dưới đây lộ ra qua một trong bốn tín hiệu này trước khi người dùng phàn nàn.</p></div>
+</section>
+
+<section class="doc" id="pr-nest" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>NestJS / Node.js</h2>
+
+<div class="inc"><h3>Bộ nhớ tăng dần, pod bị OOMKilled rồi restart liên tục</h3><dl>
+<dt>Triệu chứng</dt><dd>RSS/heap tăng đều theo thời gian, không giảm sau GC; restart xong lại tăng. Log có <code>JavaScript heap out of memory</code> hoặc Kubernetes báo <code>OOMKilled</code>.</dd>
+<dt>Nguyên nhân</dt><dd><code>Map</code>/mảng dùng làm cache không giới hạn; listener (<code>emitter.on</code>, <code>setInterval</code>) đăng ký mỗi request mà không gỡ; closure giữ object lớn; query Mongo trả hàng chục nghìn document không <code>lean()</code>; buffer cả file upload vào RAM.</dd>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">node --heapsnapshot-signal=SIGUSR2 dist/main.js   # gửi kill -USR2 &lt;pid&gt; để chụp heap
+# so sánh 2 snapshot cách nhau vài phút trong Chrome DevTools → Memory → Comparison
+node --max-old-space-size=1536 dist/main.js       # đặt heap phù hợp limit container (~75%)</code></pre></div></dd>
+<dt>Xử lý</dt><dd>Cache có giới hạn (LRU + TTL, ví dụ <code>lru-cache</code>) hoặc chuyển sang Redis; gỡ listener trong <code>onModuleDestroy</code>; phân trang/stream khi đọc dữ liệu lớn; <code>memoryStorage</code> của Multer chỉ cho file nhỏ.</dd>
+</dl></div>
+
+<div class="inc"><h3>Latency tăng vọt, health check timeout dù CPU không cao lắm</h3><dl>
+<dt>Triệu chứng</dt><dd>Mọi endpoint chậm cùng lúc, kể cả <code>/health</code>; p99 nhảy lên hàng giây theo từng đợt.</dd>
+<dt>Nguyên nhân</dt><dd><strong>Event loop bị chặn</strong>: hàm đồng bộ nặng (<code>bcrypt.hashSync</code>, <code>crypto.pbkdf2Sync</code>, <code>JSON.parse</code> payload vài chục MB, vòng lặp lớn), regex backtracking thảm họa với input xấu, <code>fs.readFileSync</code> trong request.</dd>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">import { monitorEventLoopDelay } from 'node:perf_hooks';
+const h = monitorEventLoopDelay({ resolution: 20 });
+h.enable();
+setInterval(() =&gt; { logger.log(`event loop p99=${(h.percentile(99) / 1e6).toFixed(0)}ms`); h.reset(); }, 10_000);
+// tìm hàm nóng: node --cpu-prof dist/main.js rồi mở file .cpuprofile trong DevTools</code></pre></div></dd>
+<dt>Xử lý</dt><dd>Dùng API async (<code>bcrypt.hash</code>, <code>argon2</code>), đẩy việc CPU sang <code>worker_threads</code> hoặc queue; giới hạn kích thước body; viết lại regex hoặc giới hạn độ dài input; thêm metric event loop lag vào dashboard.</dd>
+</dl></div>
+
+<div class="inc"><h3>Process chết đột ngột vì unhandled rejection</h3><dl>
+<dt>Triệu chứng</dt><dd>Pod restart, log cuối là <code>UnhandledPromiseRejection</code> hoặc stack trace của một promise không ai <code>await</code>.</dd>
+<dt>Nguyên nhân</dt><dd>Gọi hàm async "bắn rồi quên" (<code>this.audit.log(x)</code> không await, không catch). Từ Node 15, rejection không xử lý làm sập process.</dd>
+<dt>Xử lý</dt><dd>Mọi lời gọi không await phải có <code>.catch()</code>: <code>void this.audit.log(x).catch((e) =&gt; logger.warn(e))</code>. Bật rule ESLint <code>@typescript-eslint/no-floating-promises</code>. Việc quan trọng thì đưa vào queue thay vì fire-and-forget.</dd>
+</dl></div>
+
+<div class="inc"><h3>Deploy xong ứng dụng không khởi động: "Nest can't resolve dependencies"</h3><dl>
+<dt>Triệu chứng</dt><dd>Local chạy được, bản build production crash ngay khi start; hoặc một provider nhận <code>undefined</code>.</dd>
+<dt>Nguyên nhân</dt><dd>Circular import qua file barrel <code>index.ts</code> (thứ tự nạp module khác giữa tsc/SWC/bundle); quên export provider; biến môi trường thiếu làm factory ném lỗi.</dd>
+<dt>Xử lý</dt><dd>Thêm bước CI khởi động app thật (smoke test gọi <code>/health</code>) trước khi deploy; bỏ barrel import trong cùng thư mục; validate env khi boot để lỗi rõ ràng; rollout từng phần (canary) để phát hiện sớm.</dd>
+</dl></div>
+
+<div class="inc"><h3>MongoDB chậm, request treo, lỗi "MongoServerSelectionError"/ pool timeout</h3><dl>
+<dt>Triệu chứng</dt><dd>Latency DB tăng, CPU Mongo cao, request xếp hàng chờ connection; có thể kèm <code>MongoWaitQueueTimeoutError</code>.</dd>
+<dt>Nguyên nhân</dt><dd>Query thiếu index (COLLSCAN); <code>$regex</code> không có prefix; <code>countDocuments</code> trên collection lớn mỗi request; <code>maxPoolSize</code> quá nhỏ so với số request đồng thời, hoặc query chậm giữ connection lâu.</dd>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-js">db.setProfilingLevel(1, { slowms: 100 });              // ghi query &gt; 100ms vào system.profile
+db.system.profile.find().sort({ ts: -1 }).limit(10);
+db.orders.find({ shop: 'demo', status: 'open' }).explain('executionStats');
+// totalDocsExamined &gt;&gt; nReturned hoặc stage COLLSCAN → thiếu index</code></pre></div></dd>
+<dt>Xử lý</dt><dd>Index ghép theo thứ tự Equality → Sort → Range; <code>lean()</code> + projection; đặt <code>maxTimeMS</code> cho query; cache đếm tổng; tăng pool có cân nhắc (pool lớn không chữa được query chậm).</dd>
+</dl></div>
+
+<div class="inc"><h3>Mỗi lần deploy lại có 502 và mất message</h3><dl>
+<dt>Nguyên nhân</dt><dd>Pod nhận SIGTERM là chết ngay: request đang xử lý bị cắt, consumer bị đóng giữa chừng; load balancer vẫn gửi request tới pod đang tắt.</dd>
+<dt>Xử lý</dt><dd><code>app.enableShutdownHooks()</code>; readiness probe trả 503 khi đang tắt; <code>preStop: sleep 5</code>; consumer dừng nhận message mới rồi đợi message đang xử lý trong <code>onModuleDestroy</code>; <code>terminationGracePeriodSeconds</code> đủ dài. Chi tiết ở pattern <a href="#p-shutdown">Graceful shutdown</a>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Request dồn ứ khi API bên ngoài chậm</h3><dl>
+<dt>Triệu chứng</dt><dd>Một nhà cung cấp (IP lookup, Shopify API) chậm làm toàn bộ service chậm theo, số kết nối mở tăng vọt.</dd>
+<dt>Nguyên nhân</dt><dd>Gọi HTTP không đặt timeout; retry không giới hạn và không backoff; không có circuit breaker.</dd>
+<dt>Xử lý</dt><dd>Timeout cho mọi lời gọi ra ngoài (connect + tổng); retry có backoff + jitter, chỉ cho thao tác idempotent; circuit breaker (ví dụ <code>opossum</code>); giới hạn concurrency tới từng upstream; có giá trị fallback (cache cũ, "unknown").</dd>
+</dl></div>
+</section>
+
+<section class="doc" id="pr-java" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>Java / JVM</h2>
+
+<div class="inc"><h3>OutOfMemoryError: Java heap space</h3><dl>
+<dt>Triệu chứng</dt><dd>GC chạy liên tục, CPU cao, latency tăng rồi JVM ném OOM.</dd>
+<dt>Nguyên nhân</dt><dd>Rò rỉ: static <code>Map</code> làm cache không giới hạn, listener không gỡ, <code>ThreadLocal</code> không <code>remove()</code> trong pool; hoặc tải dữ liệu quá lớn một lần (<code>findAll()</code> cả bảng).</dd>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash"># luôn bật sẵn trên production
+-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dumps
+jcmd &lt;pid&gt; GC.class_histogram | head -30     # class nào chiếm nhiều nhất
+jcmd &lt;pid&gt; GC.heap_dump /dumps/now.hprof     # mở bằng Eclipse MAT → Leak Suspects</code></pre></div></dd>
+<dt>Xử lý</dt><dd>Cache có giới hạn (Caffeine với <code>maximumSize</code> + <code>expireAfterWrite</code>); phân trang/stream dữ liệu lớn; <code>ThreadLocal.remove()</code> trong <code>finally</code>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Container bị OOMKilled dù heap còn trống</h3><dl>
+<dt>Nguyên nhân</dt><dd>Bộ nhớ JVM = heap + metaspace + thread stack + direct buffer (Netty) + code cache + GC. Đặt <code>-Xmx</code> bằng đúng limit container thì phần ngoài heap làm vượt limit.</dd>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">java -XX:NativeMemoryTracking=summary ...
+jcmd &lt;pid&gt; VM.native_memory summary</code></pre></div></dd>
+<dt>Xử lý</dt><dd>Dùng <code>-XX:MaxRAMPercentage=75</code> thay vì <code>-Xmx</code> cứng; giới hạn <code>-XX:MaxDirectMemorySize</code>, <code>-XX:MaxMetaspaceSize</code>; giảm số thread platform (dùng virtual threads).</dd>
+</dl></div>
+
+<div class="inc"><h3>Ứng dụng "treo": request không trả về, CPU thấp</h3><dl>
+<dt>Nguyên nhân</dt><dd>Thread pool cạn: mọi thread đang chờ I/O không timeout, chờ connection DB, hoặc deadlock; task trong pool chờ task khác cùng pool.</dd>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">jcmd &lt;pid&gt; Thread.print &gt; dump1.txt; sleep 5; jcmd &lt;pid&gt; Thread.print &gt; dump2.txt
+# thread nào đứng yên ở cùng frame qua 2 dump? cuối file có mục "Found one Java-level deadlock"</code></pre></div></dd>
+<dt>Xử lý</dt><dd>Timeout cho mọi I/O và lần lấy lock (<code>tryLock</code>); tách pool cho từng loại việc (bulkhead); lấy lock theo thứ tự cố định; với I/O nhiều, chuyển sang virtual threads.</dd>
+</dl></div>
+
+<div class="inc"><h3>"Connection is not available, request timed out after 30000ms" (HikariCP)</h3><dl>
+<dt>Nguyên nhân</dt><dd>Rò rỉ connection (không đóng), transaction dài (gọi API ngoài bên trong <code>@Transactional</code>), pool quá nhỏ so với số thread, hoặc DB chậm.</dd>
+<dt>Xử lý</dt><dd>Bật <code>leakDetectionThreshold</code> để log stack nơi mượn connection; không gọi I/O ngoài trong transaction; theo dõi metric <code>hikaricp_connections_pending</code>; kích thước pool nhỏ và hợp lý (thường vài chục), không phải hàng trăm.</dd>
+</dl></div>
+
+<div class="inc"><h3>GC pause dài, latency p99 xấu</h3><dl>
+<dt>Chẩn đoán</dt><dd><code>-Xlog:gc*:file=gc.log:time,uptime</code>, xem thời gian pause và tần suất Full GC; JFR để xem allocation rate theo method.</dd>
+<dt>Xử lý</dt><dd>Heap quá nhỏ → tăng; tốc độ cấp phát quá cao → giảm tạo object tạm (stream lồng nhau, boxing, chuỗi lớn); cần pause rất ngắn → thử ZGC; tránh <code>System.gc()</code>.</dd>
+</dl></div>
+
+<div class="inc"><h3>CPU 100% trên một core</h3><dl>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">top -H -p &lt;pid&gt;                        # tìm thread id (TID) tốn CPU
+printf '%x\n' &lt;TID&gt;                    # đổi sang hex
+jcmd &lt;pid&gt; Thread.print | grep -A 20 'nid=0x&lt;hex&gt;'</code></pre></div></dd>
+<dt>Nguyên nhân</dt><dd>Vòng lặp vô hạn, regex backtracking, retry không có delay, <code>HashMap</code> dùng chung không đồng bộ giữa các thread.</dd>
+</dl></div>
+
+<div class="inc"><h3>Thông lượng sụt sau khi chuyển sang virtual threads</h3><dl>
+<dt>Nguyên nhân</dt><dd>JDK 21–23: blocking bên trong <code>synchronized</code> làm virtual thread bị ghim vào carrier; thư viện cũ (driver JDBC) dùng <code>synchronized</code> nhiều. Hoặc pool tài nguyên (DB) nhỏ trong khi số virtual thread không giới hạn.</dd>
+<dt>Xử lý</dt><dd>Nâng JDK 24+; kiểm tra JFR event <code>jdk.VirtualThreadPinned</code>; giới hạn đồng thời bằng <code>Semaphore</code> trước tài nguyên khan hiếm.</dd>
+</dl></div>
+</section>
+
+<section class="doc" id="pr-rabbit" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>RabbitMQ</h2>
+
+<div class="inc"><h3>Queue tồn đọng tăng mãi</h3><dl>
+<dt>Triệu chứng</dt><dd>Số message "Ready" tăng liên tục; xử lý nghiệp vụ bị trễ hàng giờ.</dd>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">rabbitmqctl list_queues name messages_ready messages_unacknowledged consumers
+# consumers = 0 → consumer chết/mất kết nối; unacked cao + ready cao → consumer chậm hoặc kẹt</code></pre></div></dd>
+<dt>Xử lý</dt><dd>Khôi phục consumer; scale ngang; tìm bước chậm (API ngoài, DB); tối ưu prefetch; cảnh báo theo độ dài queue và tuổi message cũ nhất; đặt <code>max-length</code> để bảo vệ broker.</dd>
+</dl></div>
+
+<div class="inc"><h3>Publisher bị treo: memory/disk alarm</h3><dl>
+<dt>Triệu chứng</dt><dd>Lệnh publish không trả về; UI báo connection ở trạng thái <code>blocked</code>/<code>blocking</code>; log broker có <code>memory resource limit alarm set</code> hoặc <code>disk resource limit alarm</code>.</dd>
+<dt>Nguyên nhân</dt><dd>Broker chạm <code>vm_memory_high_watermark</code> hoặc <code>disk_free_limit</code>, thường do tồn đọng lớn hoặc message quá to.</dd>
+<dt>Xử lý</dt><dd>Xả tồn đọng (thêm consumer, purge queue rác), thêm đĩa/RAM; về lâu dài: max-length cho queue, dùng stream cho khối lượng lớn, không gửi payload lớn qua broker (lưu S3, gửi link). Ở client, lắng nghe sự kiện <code>blocked</code> để báo động thay vì treo im lặng.</dd>
+</dl></div>
+
+<div class="inc"><h3>Poison message quay vòng vô hạn</h3><dl>
+<dt>Triệu chứng</dt><dd>CPU consumer cao, cùng một lỗi lặp lại liên tục trong log, message có cờ <code>redelivered=true</code>; queue không giảm.</dd>
+<dt>Nguyên nhân</dt><dd>Consumer <code>nack(requeue=true)</code> cho lỗi vĩnh viễn (JSON sai, dữ liệu không hợp lệ).</dd>
+<dt>Xử lý</dt><dd>Quorum queue với <code>delivery-limit</code> + DLX; phân loại lỗi tạm thời và vĩnh viễn; retry có độ trễ; parking lot queue cho người xem xét. Xem pattern <a href="#r-p-retry">Retry có độ trễ</a>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Channel bị đóng: "PRECONDITION_FAILED - delivery acknowledgement timed out"</h3><dl>
+<dt>Nguyên nhân</dt><dd>Consumer giữ message chưa ack quá consumer timeout (docs nêu mặc định 30 phút): job quá dài, hoặc có nhánh code quên ack/nack nên message treo mãi tới khi channel bị đóng.</dd>
+<dt>Xử lý</dt><dd>Đảm bảo mọi nhánh đều ack hoặc nack (dùng <code>try/finally</code>); việc rất dài thì ack sớm rồi theo dõi trạng thái trong DB, hoặc chia nhỏ; tăng <code>consumer_timeout</code> chỉ khi thật sự cần.</dd>
+</dl></div>
+
+<div class="inc"><h3>Mất message</h3><dl>
+<dt>Nguyên nhân</dt><dd>Một trong các mắt xích thiếu: không publisher confirm; message không persistent; queue không durable/classic không replicate khi node chết; auto-ack; routing key không khớp binding nào nên message bị bỏ im lặng; DLX chưa tồn tại lúc dead-letter.</dd>
+<dt>Xử lý</dt><dd>Quorum queue + persistent + confirm + manual ack; publish với <code>mandatory</code> hoặc alternate exchange để bắt message không định tuyến được; khai báo topology (exchange, DLX) lúc khởi động.</dd>
+</dl></div>
+
+<div class="inc"><h3>Ứng dụng không khởi động: "PRECONDITION_FAILED - inequivalent arg"</h3><dl>
+<dt>Nguyên nhân</dt><dd>Code mới khai báo lại queue với <code>x-arguments</code> khác queue đang tồn tại (thêm DLX, đổi sang quorum).</dd>
+<dt>Xử lý</dt><dd>Tham số đổi được thì chuyển sang <strong>policy</strong>; đổi loại queue thì tạo queue mới (<code>orders.v2</code>), bind song song, chuyển consumer, xả queue cũ rồi xóa.</dd>
+</dl></div>
+
+<div class="inc"><h3>Quá nhiều connection/channel, broker hết file descriptor</h3><dl>
+<dt>Nguyên nhân</dt><dd>Mở connection mới cho mỗi lần publish; channel không đóng; autoscale tạo hàng trăm pod mỗi pod nhiều connection.</dd>
+<dt>Xử lý</dt><dd>Một connection dùng lâu dài mỗi process (tách publish/consume), pool channel; giới hạn bằng <code>rabbitmqctl set_vhost_limits</code>; theo dõi tốc độ mở/đóng connection (churn).</dd>
+</dl></div>
+</section>
+
+<section class="doc" id="pr-kafka" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>Kafka</h2>
+
+<div class="inc"><h3>Consumer lag tăng liên tục</h3><dl>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">kafka-consumer-groups.sh --bootstrap-server $B --describe --group risk
+# LAG lệch ở vài partition → key nóng hoặc consumer của partition đó chậm
+# LAG đều mọi partition → consumer tổng thể không theo kịp</code></pre></div></dd>
+<dt>Nguyên nhân</dt><dd>Xử lý từng record chậm (gọi API/DB tuần tự); số consumer đã bằng số partition; rebalance liên tục; key nóng dồn vào một partition.</dd>
+<dt>Xử lý</dt><dd>Xử lý theo batch, song song bên trong partition theo key (giữ thứ tự từng key); tăng partition (chú ý ánh xạ key thay đổi); tách việc chậm sang topic/queue khác; cảnh báo theo lag và theo "thời gian trễ" ước tính.</dd>
+</dl></div>
+
+<div class="inc"><h3>Rebalance liên tục ("rebalance storm")</h3><dl>
+<dt>Triệu chứng</dt><dd>Log lặp lại <code>Attempt to heartbeat failed since group is rebalancing</code>, <code>consumer poll timeout has expired</code>; thông lượng gần như bằng 0.</dd>
+<dt>Nguyên nhân</dt><dd>Xử lý một batch lâu hơn <code>max.poll.interval.ms</code> nên consumer bị đá khỏi group, partition chuyển đi, lại xử lý lại; deploy rolling làm group rebalance nhiều lần.</dd>
+<dt>Xử lý</dt><dd>Giảm <code>max.poll.records</code>, tăng <code>max.poll.interval.ms</code> cho việc nặng; static membership (<code>group.instance.id</code>); dùng giao thức mới <code>group.protocol=consumer</code> (Kafka 4.0+) để rebalance tăng dần, ít gián đoạn.</dd>
+</dl></div>
+
+<div class="inc"><h3>Poison pill làm kẹt cả partition</h3><dl>
+<dt>Triệu chứng</dt><dd>Lag của một partition đứng yên, log lặp <code>SerializationException</code> hoặc lỗi xử lý ở cùng một offset.</dd>
+<dt>Xử lý</dt><dd>Bắt lỗi deserialize (Spring: <code>ErrorHandlingDeserializer</code>), gửi record lỗi sang DLT rồi commit để đi tiếp; khẩn cấp có thể nhảy qua offset: <code>kafka-consumer-groups.sh --reset-offsets --shift-by 1 --topic t:partition</code> (khi group đang dừng).</dd>
+</dl></div>
+
+<div class="inc"><h3>Xử lý trùng sau khi restart hoặc rebalance</h3><dl>
+<dt>Nguyên nhân</dt><dd>At-least-once là mặc định: xử lý xong nhưng chưa kịp commit thì consumer chết, consumer mới đọc lại từ offset cũ.</dd>
+<dt>Xử lý</dt><dd>Consumer idempotent (bảng processed với unique key, upsert theo khóa nghiệp vụ); commit thường xuyên hơn; Kafka → Kafka thì dùng transaction/exactly-once.</dd>
+</dl></div>
+
+<div class="inc"><h3>Mất dữ liệu: consumer bỏ qua message</h3><dl>
+<dt>Nguyên nhân</dt><dd><code>auto.offset.reset=latest</code> với group mới hoặc offset đã hết hạn (group ngừng lâu hơn retention offset) nên consumer nhảy về cuối; lag lớn hơn retention nên dữ liệu bị xóa trước khi đọc; <code>acks=1</code> và leader chết trước khi replica sao chép.</dd>
+<dt>Xử lý</dt><dd><code>auto.offset.reset=earliest</code> cho group quan trọng; cảnh báo khi lag tiến gần retention; <code>acks=all</code> + <code>min.insync.replicas=2</code> + RF 3; giữ <code>unclean.leader.election.enable=false</code>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Producer báo NotEnoughReplicas / timeout khi một broker chết</h3><dl>
+<dt>Nguyên nhân</dt><dd>RF=2 với <code>min.insync.replicas=2</code>: chỉ cần một broker chết là không ghi được. Hoặc broker quá tải khiến ISR co lại.</dd>
+<dt>Xử lý</dt><dd>RF=3, min.insync=2 (chịu được mất một broker); theo dõi metric under-replicated partitions; producer có <code>delivery.timeout.ms</code> hợp lý và xử lý callback lỗi.</dd>
+</dl></div>
+
+<div class="inc"><h3>Broker đầy đĩa</h3><dl>
+<dt>Xử lý</dt><dd>Khẩn cấp: giảm <code>retention.ms</code> của topic lớn nhất (<code>kafka-configs.sh --alter --add-config retention.ms=...</code>), Kafka xóa segment cũ trong vài phút. Lâu dài: tính dung lượng = thông lượng × retention × RF, cảnh báo ở 70%, bật nén (<code>zstd</code>), xem xét tiered storage.</dd>
+</dl></div>
+</section>
+
+<section class="doc" id="pr-redis" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>Redis</h2>
+
+<div class="inc"><h3>Latency Redis tăng đột biến</h3><dl>
+<dt>Chẩn đoán</dt><dd>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">redis-cli SLOWLOG GET 20          # lệnh chậm gần nhất
+redis-cli LATENCY DOCTOR
+redis-cli --bigkeys               # key lớn bất thường
+redis-cli INFO commandstats       # lệnh nào tốn thời gian nhất</code></pre></div></dd>
+<dt>Nguyên nhân</dt><dd><code>KEYS *</code>; <code>HGETALL</code>/<code>SMEMBERS</code>/<code>LRANGE 0 -1</code> trên big key; <code>DEL</code> key hàng triệu phần tử; script Lua chạy lâu; fork cho RDB/AOF rewrite trên máy bật transparent huge pages.</dd>
+<dt>Xử lý</dt><dd><code>SCAN</code>/<code>HSCAN</code>; chia nhỏ big key; <code>UNLINK</code> thay <code>DEL</code>; tắt THP (<code>echo never &gt; /sys/kernel/mm/transparent_hugepage/enabled</code>); đặt lệnh nguy hiểm sau ACL.</dd>
+</dl></div>
+
+<div class="inc"><h3>"OOM command not allowed when used memory &gt; 'maxmemory'"</h3><dl>
+<dt>Nguyên nhân</dt><dd>Policy <code>noeviction</code> và bộ nhớ đầy: key không có TTL tích tụ, stream không trim, job BullMQ hoàn thành không xóa.</dd>
+<dt>Xử lý</dt><dd>Tìm prefix chiếm nhiều bộ nhớ (<code>--bigkeys</code>, <code>MEMORY USAGE key</code>, phân tích RDB); thêm TTL; <code>MAXLEN</code> cho stream; <code>removeOnComplete</code> cho BullMQ; instance cache dùng <code>allkeys-lru</code>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Job/khóa biến mất bí ẩn</h3><dl>
+<dt>Nguyên nhân</dt><dd>Queue/khóa nằm chung instance với cache dùng <code>allkeys-lru</code>: khi đầy, Redis xóa luôn key của queue.</dd>
+<dt>Xử lý</dt><dd>Tách instance: cache (<code>allkeys-lru</code>) và dữ liệu cần bền (<code>noeviction</code> + persistence); theo dõi <code>evicted_keys</code> trong <code>INFO stats</code>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Database quá tải sau khi Redis restart / flush (cache stampede)</h3><dl>
+<dt>Xử lý</dt><dd>Single-flight / khóa ngắn khi rebuild key; TTL có jitter; warm-up cache key nóng trước khi mở traffic; circuit breaker bảo vệ DB. Xem pattern <a href="#rd-p-cache">Cache-aside</a>.</dd>
+</dl></div>
+
+<div class="inc"><h3>"ERR max number of clients reached"</h3><dl>
+<dt>Nguyên nhân</dt><dd>Tạo client Redis mới cho mỗi request hoặc mỗi job mà không đóng; nhiều pod × pool lớn.</dd>
+<dt>Xử lý</dt><dd>Một client dùng chung cho mỗi process (ioredis, Lettuce multiplex); kiểm tra bằng <code>CLIENT LIST</code> nhóm theo <code>name</code>/<code>addr</code>; đặt tên client (<code>connectionName</code>) để biết service nào rò rỉ; <code>timeout</code> để dọn connection idle.</dd>
+</dl></div>
+
+<div class="inc"><h3>Hai worker cùng chạy một job dù đã có khóa</h3><dl>
+<dt>Nguyên nhân</dt><dd>Job chạy lâu hơn TTL của khóa nên khóa hết hạn, worker khác lấy được; giải phóng khóa bằng <code>DEL</code> thẳng (xóa luôn khóa của người khác).</dd>
+<dt>Xử lý</dt><dd>TTL dài hơn thời gian chạy tối đa hoặc gia hạn định kỳ (watchdog như Redisson); giải phóng bằng Lua kiểm tra token; thao tác cuối cùng dựa trên ràng buộc DB (unique, version) để an toàn tuyệt đối.</dd>
+</dl></div>
+
+<div class="inc"><h3>Lỗi CROSSSLOT sau khi chuyển sang Redis Cluster</h3><dl>
+<dt>Nguyên nhân</dt><dd><code>MGET</code>, <code>MULTI</code>, Lua với nhiều key nằm khác slot.</dd>
+<dt>Xử lý</dt><dd>Đặt hash tag cho nhóm key cần thao tác cùng nhau (<code>rl:{shop-1}:min</code>, <code>rl:{shop-1}:hour</code>); kiểm tra trước bằng <code>CLUSTER KEYSLOT</code>; tránh lệnh nhiều key không cần thiết.</dd>
+</dl></div>
+
+<div class="inc"><h3>Subscriber Pub/Sub mất message hoặc bị ngắt kết nối</h3><dl>
+<dt>Nguyên nhân</dt><dd>Pub/Sub không lưu: client đang reconnect là mất; subscriber chậm làm output buffer vượt <code>client-output-buffer-limit pubsub</code> nên bị server ngắt.</dd>
+<dt>Xử lý</dt><dd>Chỉ dùng Pub/Sub cho tín hiệu có thể mất (invalidate cache, kèm TTL dự phòng); việc cần chắc chắn thì dùng Streams/queue.</dd>
+</dl></div>
+</section>
+</div>
+<div class="panel" data-panel="interview" role="tabpanel" aria-labelledby="tab-interview" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Ngân hàng câu hỏi theo cấp độ</p>
+  <h1>Phỏng vấn Backend</h1>
+  <p class="lead">Câu hỏi phỏng vấn chuyên sâu về NestJS, Java, RabbitMQ, Kafka, Redis và thiết kế hệ thống, chia theo cấp Junior, Middle, Senior. Bấm vào câu hỏi để xem gợi ý trả lời; dùng bộ lọc để luyện theo cấp.</p>
+  <div class="stats"><span><b>7</b> chủ đề</span><span><b id="qaCount">60</b> câu hỏi</span></div>
+</div>
+
+<div class="lvl-bar" role="group" aria-label="Lọc theo cấp độ">
+  <button type="button" class="lvl-btn" data-level="all" aria-pressed="true">Tất cả</button>
+  <button type="button" class="lvl-btn" data-level="junior" aria-pressed="false">Junior</button>
+  <button type="button" class="lvl-btn" data-level="middle" aria-pressed="false">Middle</button>
+  <button type="button" class="lvl-btn" data-level="senior" aria-pressed="false">Senior</button>
+  <button type="button" class="lvl-btn lvl-toggle" id="qaToggle">Mở tất cả đáp án</button>
+</div>
+
+<section class="doc" id="iv-cach-dung" data-group="Chung"><p class="group-label">Chung</p>
+<h2>Kỳ vọng theo cấp độ</h2>
+<div class="grid2">
+  <div class="card"><h5><span class="badge lv-junior">Junior</span></h5><p>Hiểu đúng khái niệm, dùng được công cụ theo hướng dẫn, đọc được lỗi và biết tra cứu. Trả lời "cái gì" và "dùng thế nào".</p></div>
+  <div class="card"><h5><span class="badge lv-middle">Middle</span></h5><p>Tự thiết kế và làm xong một tính năng, biết đánh đổi giữa các cách, xử lý lỗi và edge case, debug sự cố thường gặp. Trả lời "vì sao" và "khi nào không nên".</p></div>
+  <div class="card"><h5><span class="badge lv-senior">Senior</span></h5><p>Thiết kế hệ thống chịu lỗi và mở rộng được, hiểu cơ chế bên trong, dẫn dắt xử lý sự cố, cân bằng độ đúng đắn, chi phí và độ phức tạp. Trả lời "điều gì xảy ra khi hỏng".</p></div>
+</div>
+<p>Người phỏng vấn thường hỏi tiếp "nếu … thì sao?" sau mỗi câu. Phần gợi ý dưới đây là ý chính cần nêu, không phải câu trả lời để học thuộc.</p>
+</section>
+
+<section class="doc" id="iv-nest" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>NestJS / Node.js</h2>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Module, Controller, Provider khác nhau thế nào?</summary><div class="ans">
+<p>Module gom nhóm và đóng gói; controller nhận request HTTP và trả response; provider (service, repository…) chứa logic và được DI quản lý. Provider chỉ dùng được ở module khác nếu module chứa nó <code>exports</code> và module kia <code>imports</code>.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Dependency Injection là gì, Nest biết inject cái gì vào constructor bằng cách nào?</summary><div class="ans">
+<p>Class không tự tạo phụ thuộc mà nhận qua constructor; container tạo và quản lý vòng đời. Nest đọc metadata kiểu tham số (<code>emitDecoratorMetadata</code>) làm token, tìm provider tương ứng trong scope module. Vì thế interface không làm token được; cần <code>@Inject(token)</code> hoặc abstract class.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Pipe dùng để làm gì? ValidationPipe với whitelist và transform có tác dụng gì?</summary><div class="ans">
+<p>Pipe biến đổi và validate tham số trước khi vào handler. <code>whitelist</code> bỏ field không khai báo trong DTO (chống mass assignment), <code>forbidNonWhitelisted</code> trả 400 thay vì bỏ, <code>transform</code> chuyển payload thành instance DTO và ép kiểu param/query.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Event loop của Node.js là gì? Vì sao không được chạy code đồng bộ nặng trong request?</summary><div class="ans">
+<p>Node chạy JavaScript trên một luồng; I/O được giao cho hệ điều hành/libuv và callback quay lại event loop. Code đồng bộ nặng chiếm luồng duy nhất nên mọi request khác phải chờ. Việc CPU nặng đưa sang worker thread hoặc service khác.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Trình bày thứ tự request đi qua middleware, guard, interceptor, pipe, filter. Mỗi loại nên dùng cho việc gì?</summary><div class="ans">
+<p>Middleware → guard → interceptor (trước) → pipe → handler → interceptor (sau) → exception filter (khi có lỗi). Middleware không biết handler đích (request-id, log thô); guard quyết định cho qua (auth); interceptor bọc logic trước/sau (log thời gian, bọc response, cache, timeout); pipe validate input; filter định dạng lỗi. Điểm cộng: biết guard dùng <code>Reflector</code> đọc metadata còn middleware thì không.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Injection scope REQUEST hoạt động thế nào, có hệ quả gì? Có cách nào thay thế?</summary><div class="ans">
+<p>Provider REQUEST được tạo mới mỗi request và "lan" lên mọi class phụ thuộc vào nó, làm cả chuỗi bị tạo lại → tốn CPU/GC, không chạy lifecycle hook. Thay thế: AsyncLocalStorage (<code>nestjs-cls</code>) để giữ context theo request mà provider vẫn singleton; hoặc truyền tham số tường minh.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Xử lý circular dependency giữa hai service thế nào?</summary><div class="ans">
+<p>Tạm thời: <code>forwardRef(() =&gt; X)</code> ở cả hai phía (provider và module). Đúng hơn: tách phần dùng chung ra service/module thứ ba, hoặc đổi một chiều phụ thuộc thành event. Kiểm tra cả circular import do file barrel.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Làm sao viết test cho service có phụ thuộc vào Mongoose model và guard global?</summary><div class="ans">
+<p><code>Test.createTestingModule</code> với <code>{ provide: getModelToken(X.name), useValue: mock }</code>; dùng <code>overrideProvider</code>/<code>overrideGuard</code>/<code>useMocker</code>. Guard global đăng ký bằng <code>APP_GUARD</code> + <code>useClass</code> không override trực tiếp được: chuyển sang <code>useExisting</code> rồi override class đó. E2E thì phải lặp lại cấu hình global của <code>main.ts</code>.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Service Nest bị tăng latency p99 theo đợt mà CPU chỉ 40%. Bạn điều tra thế nào?</summary><div class="ans">
+<p>Đo event loop lag (<code>monitorEventLoopDelay</code>), so thời điểm với GC (<code>--trace-gc</code>) và với các job định kỳ. CPU 40% trung bình có thể che một luồng bị chặn hoàn toàn trong vài trăm ms. Lấy CPU profile lúc có spike; kiểm tra hàm sync, regex, JSON lớn, pool DB chờ connection, upstream không timeout. Phân biệt chờ I/O (pool, upstream) với chặn CPU. Đưa event loop lag và pool wait thành metric thường trực.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Thiết kế module boundaries cho một modular monolith Nest sắp tách thành microservice.</summary><div class="ans">
+<p>Mỗi module sở hữu dữ liệu (collection riêng), chỉ export facade; cấm import nội bộ module khác (lint boundaries); ghi chéo qua facade, phản ứng phụ qua event (outbox để chắc chắn); không join dữ liệu giữa module ở DB. Khi tách: facade thành API/RPC client, event nội bộ thành message broker. Nêu được chi phí: độ trễ mạng, nhất quán cuối cùng, vận hành.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Làm sao đảm bảo vừa ghi MongoDB vừa phát sự kiện RabbitMQ không bị lệch?</summary><div class="ans">
+<p>Dual write không thể nguyên tử. Dùng transactional outbox: ghi sự kiện vào collection outbox trong cùng transaction (Mongo replica set), relay (polling có claim, hoặc change stream) publish với publisher confirm rồi đánh dấu đã gửi. Kết quả at-least-once nên consumer phải idempotent (message id + unique index). Bàn thêm: thứ tự, dọn outbox, nhiều instance relay (khóa hoặc claim).</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Khi nào chọn Fastify hoặc Node adapter thay Express? Rủi ro khi đổi?</summary><div class="ans">
+<p>Khi throughput/latency HTTP là nút thắt thật (đã đo), không phải DB. Rủi ro: middleware Express không chạy được hoặc khác hành vi, khác biệt wildcard/route, sub-domain routing, <code>@Res()</code> API khác (<code>send</code> vs <code>json</code>), plugin (multipart, cookie) khác. Cần benchmark với workload thật và test e2e đầy đủ trước khi đổi.</p></div></details>
+</section>
+
+<section class="doc" id="iv-java" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>Java</h2>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Khác nhau giữa <code>==</code> và <code>equals()</code>? Vì sao override equals phải override hashCode?</summary><div class="ans">
+<p><code>==</code> so tham chiếu (với kiểu nguyên thủy là so giá trị); <code>equals</code> so nội dung theo định nghĩa của class. HashMap/HashSet dùng hashCode để chọn bucket rồi equals để so: hai object bằng nhau mà khác hashCode sẽ không tìm thấy nhau.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Checked và unchecked exception khác nhau thế nào? try-with-resources giải quyết gì?</summary><div class="ans">
+<p>Checked (<code>IOException</code>) bắt buộc xử lý hoặc khai báo <code>throws</code>; unchecked (<code>RuntimeException</code>) thì không. try-with-resources tự gọi <code>close()</code> cho tài nguyên <code>AutoCloseable</code> kể cả khi có exception, tránh rò rỉ file/connection.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>ArrayList và LinkedList, HashMap và TreeMap: chọn cái nào khi nào?</summary><div class="ans">
+<p>ArrayList gần như luôn tốt hơn (truy cập index O(1), cache-friendly); LinkedList hiếm khi thắng. HashMap O(1) trung bình, không thứ tự; TreeMap O(log n), sắp xếp theo key, có <code>floorKey/ceilingKey</code>; LinkedHashMap giữ thứ tự chèn, làm LRU được.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Record là gì? Khi nào dùng record thay cho class thường?</summary><div class="ans">
+<p>Class bất biến chỉ chứa dữ liệu; compiler sinh constructor, accessor, equals/hashCode/toString. Dùng cho DTO, value object, key của Map, kết quả trả nhiều giá trị. Validate trong compact constructor; sao chép phòng thủ collection.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>HashMap hoạt động bên trong thế nào? Điều gì xảy ra khi nhiều key trùng bucket?</summary><div class="ans">
+<p>Mảng bucket; index = hash (đã trộn bit cao) &amp; (n-1). Va chạm thì lưu danh sách liên kết; khi một bucket vượt 8 phần tử (và bảng ≥ 64) chuyển thành cây đỏ-đen O(log n). Vượt load factor 0.75 thì resize gấp đôi và phân bố lại. Không thread-safe: dùng ConcurrentHashMap khi chia sẻ.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span><code>volatile</code>, <code>synchronized</code>, <code>AtomicInteger</code> khác nhau ra sao?</summary><div class="ans">
+<p><code>volatile</code> đảm bảo khả kiến và thứ tự (happens-before) nhưng không nguyên tử cho thao tác ghép như <code>i++</code>. <code>synchronized</code> đảm bảo cả nguyên tử lẫn khả kiến bằng khóa. Atomic dùng CAS, nguyên tử không khóa cho một biến; đếm tranh chấp cao dùng <code>LongAdder</code>.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Virtual threads khác platform threads thế nào? Khi nào không nên dùng?</summary><div class="ans">
+<p>Virtual thread do JVM lập lịch trên vài carrier thread; khi blocking I/O thì được tháo ra, nên tạo hàng triệu cái được. Hợp với I/O-bound. Không giúp việc CPU-bound; không pool chúng; giới hạn tài nguyên bằng Semaphore; ThreadLocal nặng bị nhân bản; JDK 21–23 bị pinning trong <code>synchronized</code>.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Giải thích Stream API lazy evaluation. parallelStream có nên dùng cho gọi API không?</summary><div class="ans">
+<p>Bước trung gian chỉ dựng pipeline; chạy khi gặp bước kết thúc, xử lý từng phần tử xuyên qua pipeline, có short-circuit (<code>findFirst</code>, <code>anyMatch</code>). parallelStream dùng common ForkJoinPool chung cả JVM: I/O blocking sẽ chiếm hết pool và ảnh hưởng nơi khác. Với I/O dùng virtual threads hoặc <code>Gatherers.mapConcurrent</code>.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Pod Java bị OOMKilled nhưng heap dump không thấy gì bất thường. Phân tích?</summary><div class="ans">
+<p>Vấn đề nằm ngoài heap: metaspace (classloader leak, proxy sinh động), direct buffer (Netty), thread stack (nhiều thread), code cache, bộ nhớ native của thư viện, hoặc <code>-Xmx</code> đặt sát limit container. Dùng Native Memory Tracking (<code>jcmd VM.native_memory</code>), so sánh RSS với heap; đặt <code>MaxRAMPercentage</code>, giới hạn direct memory/metaspace; dùng allocator khác (jemalloc) nếu do phân mảnh glibc.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Chọn GC cho service API latency thấp heap 16GB và cho batch job. Lý do?</summary><div class="ans">
+<p>API latency thấp, heap lớn: ZGC (generational) cho pause dưới mili-giây, đổi lại tốn CPU/bộ nhớ hơn; G1 với <code>MaxGCPauseMillis</code> nếu yêu cầu vừa phải. Batch: Parallel GC cho throughput tối đa, chấp nhận pause. Luôn quyết định bằng số liệu: GC log, allocation rate, p99 trước/sau, và giảm rác ở code trước khi tune flag.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Java Memory Model: vì sao double-checked locking cần <code>volatile</code>?</summary><div class="ans">
+<p>Không có volatile, lệnh gán tham chiếu có thể bị sắp xếp lại trước khi constructor chạy xong; thread khác thấy tham chiếu khác null nhưng object chưa khởi tạo xong. volatile tạo quan hệ happens-before giữa ghi và đọc. Thay thế gọn hơn: holder idiom hoặc enum singleton.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Sealed interface + pattern matching thay Visitor được không? Đánh đổi là gì?</summary><div class="ans">
+<p>Được: switch trên sealed type được compiler kiểm tra đủ trường hợp, thêm thao tác mới không phải sửa các class. Đánh đổi: thêm subtype mới phải sửa mọi switch (compiler chỉ ra chỗ), và chỉ dùng được khi tập subtype đóng trong cùng module/package. Khi bên ngoài cần mở rộng loại, đa hình qua method interface hợp hơn.</p></div></details>
+</section>
+
+<section class="doc" id="iv-rabbit" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>RabbitMQ</h2>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Exchange, queue, binding, routing key là gì? Kể các loại exchange.</summary><div class="ans">
+<p>Producer gửi tới exchange kèm routing key; binding là luật nối exchange với queue; queue giữ message cho consumer. Loại: direct (khớp chính xác), fanout (copy tới mọi queue), topic (khớp mẫu với <code>*</code> một đoạn, <code>#</code> nhiều đoạn), headers.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Ack thủ công và auto-ack khác nhau thế nào?</summary><div class="ans">
+<p>Auto-ack coi message đã xong ngay khi giao; consumer chết là mất. Ack thủ công: consumer xác nhận sau khi xử lý xong; chết giữa chừng thì message quay lại queue. Production nên ack thủ công.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Dead letter exchange dùng để làm gì?</summary><div class="ans">
+<p>Nơi nhận message bị từ chối (nack không requeue), hết TTL, vượt độ dài queue hoặc vượt delivery-limit. Dùng để cách ly message lỗi, xem lại, retry có độ trễ.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Làm sao đảm bảo không mất message từ producer tới consumer?</summary><div class="ans">
+<p>Queue durable/quorum + message persistent; publisher confirm (và xử lý nack/timeout bằng gửi lại); <code>mandatory</code>/alternate exchange cho message không định tuyến được; consumer ack thủ công sau khi xử lý; DLX cho lỗi. Kết quả là at-least-once nên consumer phải idempotent.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Prefetch là gì? Đặt quá cao hoặc quá thấp gây ra vấn đề gì?</summary><div class="ans">
+<p>Số message tối đa giao cho consumer mà chưa ack. Quá thấp (1): an toàn nhưng tốn round-trip, thông lượng thấp. Quá cao: consumer ôm nhiều message (tốn RAM), phân phối không đều, message bị giữ lâu trong khi consumer khác rảnh. Docs gợi ý 100–300; việc xử lý lâu thì nhỏ hơn.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Classic, quorum và stream queue khác nhau thế nào? Chọn loại nào cho hàng đợi đơn hàng?</summary><div class="ans">
+<p>Classic không replicate; quorum replicate bằng Raft, có delivery-limit, at-least-once dead-lettering; stream là log không xóa khi đọc, replay được. Đơn hàng là dữ liệu quan trọng → quorum. Stream khi cần nhiều consumer đọc lại hoặc thông lượng rất cao.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Thiết kế cơ chế retry với backoff và giới hạn số lần cho RabbitMQ.</summary><div class="ans">
+<p>4.3+: quorum queue <code>delayed-retry</code> + <code>delivery-limit</code> + DLX tới parking queue. Phiên bản cũ: retry queue có TTL dead-letter quay về exchange gốc, đếm lần thử qua header <code>x-death</code>; nhiều tầng TTL cho backoff tăng dần. Phân loại lỗi vĩnh viễn để đẩy thẳng sang parking. Lưu ý retry làm mất thứ tự, và cần idempotency.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Cần xử lý sự kiện theo thứ tự cho từng shop nhưng vẫn song song giữa các shop. Thiết kế?</summary><div class="ans">
+<p>Chia theo khóa shop sang N queue (consistent hash exchange hoặc producer tự tính <code>hash(shop) % N</code> vào routing key), mỗi queue bật single active consumer (một consumer xử lý, các consumer khác dự phòng). Không requeue tại chỗ (phá thứ tự); retry chặn tại chỗ có giới hạn hoặc chấp nhận đẩy sang parking. Hoặc dùng super stream / Kafka partition theo key.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Cụm RabbitMQ 3 node bị chia mạng (network partition). Chuyện gì xảy ra với quorum queue?</summary><div class="ans">
+<p>Phía có đa số (2 node) tiếp tục phục vụ, leader được bầu ở đó; phía thiểu số không nhận ghi cho queue đó. Với <code>pause_minority</code>, node thiểu số tự dừng. Khi mạng lành, node thiểu số đồng bộ lại theo log Raft. Đây là lý do cần số node lẻ và tránh cụm 2 node.</p></div></details>
+</section>
+
+<section class="doc" id="iv-kafka" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>Kafka</h2>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Topic, partition, offset, consumer group là gì?</summary><div class="ans">
+<p>Topic là luồng sự kiện; chia thành partition (log có thứ tự); offset là vị trí record trong partition; consumer group chia nhau partition, mỗi partition chỉ một consumer trong group đọc. Các group khác nhau đọc độc lập.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Kafka khác RabbitMQ ở điểm cơ bản nào?</summary><div class="ans">
+<p>Kafka là log: message không bị xóa khi đọc, giữ theo retention, đọc lại được, consumer tự quản offset, scale theo partition. RabbitMQ là queue: message bị xóa khi ack, định tuyến linh hoạt, có sẵn DLX/retry/priority.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Vì sao gửi message kèm key?</summary><div class="ans">
+<p>Cùng key thì cùng partition, nên thứ tự được giữ cho từng thực thể (đơn hàng, shop). Key cũng là cơ sở cho log compaction.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>acks=0/1/all khác nhau thế nào? min.insync.replicas đóng vai trò gì?</summary><div class="ans">
+<p>0: không chờ (có thể mất); 1: leader ghi xong (mất nếu leader chết trước khi follower sao chép); all: mọi replica trong ISR ghi xong. <code>min.insync.replicas</code> là số ISR tối thiểu để chấp nhận ghi với acks=all; RF=3 + min.insync=2 chịu được mất một broker mà không mất dữ liệu.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>At-least-once và at-most-once khác nhau ở thứ tự commit offset thế nào?</summary><div class="ans">
+<p>Commit trước rồi xử lý: chết giữa chừng thì mất (at-most-once). Xử lý xong rồi commit: chết trước khi commit thì xử lý lại (at-least-once, cần idempotent). Auto-commit commit offset của lần poll trước.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Rebalance là gì, khi nào xảy ra, làm sao giảm ảnh hưởng?</summary><div class="ans">
+<p>Phân lại partition khi consumer vào/ra group, khi đổi số partition, hoặc khi consumer vượt <code>max.poll.interval.ms</code>/session timeout. Giảm: static membership, cooperative/incremental (giao thức <code>group.protocol=consumer</code> của Kafka 4), giữ thời gian xử lý mỗi poll ngắn, commit trước khi mất partition.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Một record lỗi mãi không xử lý được. Bạn làm gì để partition không bị kẹt?</summary><div class="ans">
+<p>Retry tại chỗ vài lần với backoff ngắn; vẫn lỗi thì gửi sang retry topic / DLT kèm header lỗi rồi commit để đi tiếp. Lỗi deserialize xử lý bằng deserializer bắt lỗi. Spring Kafka có <code>@RetryableTopic</code>/<code>DefaultErrorHandler</code> + <code>DeadLetterPublishingRecoverer</code>.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Exactly-once trong Kafka hoạt động thế nào và giới hạn ở đâu?</summary><div class="ans">
+<p>Idempotent producer (producer id + sequence) chống trùng khi retry; transaction ghi nhiều partition và commit offset input (<code>sendOffsetsToTransaction</code>) nguyên tử; consumer <code>read_committed</code> chỉ thấy transaction đã commit; <code>transactional.id</code> + epoch chặn "zombie". Giới hạn: chỉ trong phạm vi Kafka → Kafka; tác động ra ngoài (DB, API) vẫn cần idempotency hoặc lưu offset cùng transaction DB.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Chọn số partition cho topic thế nào? Tăng partition sau này có vấn đề gì?</summary><div class="ans">
+<p>Dựa trên thông lượng mục tiêu / thông lượng mỗi consumer, số consumer song song tối đa, dư cho tăng trưởng; cân nhắc chi phí (file handle, thời gian bầu leader, bộ nhớ client). Tăng partition đổi ánh xạ <code>hash(key) % N</code> nên record mới của một key có thể sang partition khác: mất thứ tự theo key trong giai đoạn chuyển. Không giảm partition được.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Thiết kế pipeline CDC từ MongoDB/Postgres sang Kafka cho nhiều service tiêu thụ.</summary><div class="ans">
+<p>Outbox table + Debezium (Kafka Connect) đọc change log; Outbox Event Router định tuyến theo aggregate type, key = aggregate id để giữ thứ tự; schema registry với chính sách tương thích; topic compacted cho trạng thái, topic delete cho sự kiện; consumer idempotent; theo dõi lag connector, xử lý snapshot ban đầu, thay đổi schema, xóa dữ liệu (tombstone, GDPR).</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Share group (Queues for Kafka) giải quyết vấn đề gì của consumer group truyền thống?</summary><div class="ans">
+<p>Consumer group giới hạn song song bằng số partition và một record lỗi làm kẹt partition. Share group cho nhiều consumer cùng đọc một partition, ack từng record, đếm số lần giao (có DLQ từ 4.4), giống work queue. Đánh đổi: không đảm bảo thứ tự; hợp với việc xử lý độc lập từng record.</p></div></details>
+</section>
+
+<section class="doc" id="iv-redis" data-group="Theo công nghệ"><p class="group-label">Theo công nghệ</p>
+<h2>Redis</h2>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Redis nhanh vì sao? Kể các kiểu dữ liệu chính và ví dụ dùng.</summary><div class="ans">
+<p>Dữ liệu trong RAM, cấu trúc dữ liệu tối ưu, xử lý lệnh trên một luồng chính nên không tốn khóa, I/O multiplexing. String (cache, đếm), hash (object), list (queue đơn giản), set (tập duy nhất), sorted set (xếp hạng), stream (log sự kiện), HyperLogLog (đếm duy nhất gần đúng).</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>TTL là gì? Vì sao không nên dùng KEYS trên production?</summary><div class="ans">
+<p>TTL cho key tự hết hạn (<code>EXPIRE</code>, <code>SET … EX</code>). <code>KEYS</code> duyệt toàn bộ keyspace trong một lệnh, chặn server; dùng <code>SCAN</code> theo đợt.</p></div></details>
+
+<details class="qa" data-level="junior"><summary><span class="badge lv-junior">Junior</span>Cache-aside hoạt động thế nào?</summary><div class="ans">
+<p>Đọc cache; miss thì đọc DB rồi ghi cache có TTL; khi cập nhật dữ liệu thì ghi DB rồi xóa key cache (không ghi đè, để tránh race).</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>RDB và AOF khác nhau thế nào? Cấu hình gì cho dữ liệu quan trọng?</summary><div class="ans">
+<p>RDB chụp snapshot định kỳ (khởi động nhanh, mất vài phút dữ liệu); AOF ghi log mọi lệnh ghi (mất tối đa ~1s với <code>everysec</code>). Dữ liệu quan trọng: bật AOF everysec, có RDB để sao lưu; vẫn nhớ replication là bất đồng bộ nên failover có thể mất một ít.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Cache stampede, cache penetration, cache avalanche là gì và xử lý thế nào?</summary><div class="ans">
+<p>Stampede: key nóng hết hạn, nhiều request cùng tính lại → single-flight/khóa ngắn, làm mới sớm. Penetration: truy vấn key không tồn tại liên tục → cache giá trị rỗng TTL ngắn, Bloom filter. Avalanche: nhiều key hết hạn cùng lúc hoặc Redis sập → TTL có jitter, cache nhiều tầng, circuit breaker bảo vệ DB.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Viết rate limiter 100 request/phút/IP bằng Redis. So sánh các cách.</summary><div class="ans">
+<p>Fixed window: <code>INCR rl:ip:minute</code> + <code>EXPIRE</code>, rẻ nhưng có thể gấp đôi ở ranh giới. Sliding log: sorted set timestamp + Lua (ZREMRANGEBYSCORE, ZCARD, ZADD) chính xác nhưng tốn bộ nhớ. Token bucket: hash + Lua, cho phép burst. Phải nguyên tử (MULTI hoặc Lua), và lưu ý hash tag nếu dùng cluster.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>MULTI/EXEC có rollback không? WATCH dùng để làm gì?</summary><div class="ans">
+<p>Không rollback: lệnh được xếp hàng và chạy liền mạch; lệnh lỗi lúc chạy không làm các lệnh khác hoàn tác. WATCH là optimistic lock: nếu key bị thay đổi trước EXEC thì transaction bị hủy, client thử lại. Logic phức tạp nên dùng Lua.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Distributed lock bằng Redis có an toàn không? Redlock bị phê bình điểm nào?</summary><div class="ans">
+<p><code>SET NX PX</code> + giải phóng bằng Lua kiểm tra token là đủ cho việc "hiệu quả" (tránh chạy trùng tốn công). Không an toàn tuyệt đối: failover bất đồng bộ làm mất khóa, GC pause/tiến trình bị treo vượt TTL, lệch đồng hồ. Redlock dùng nhiều node độc lập nhưng vẫn dựa vào giả định thời gian. Khi đúng đắn là bắt buộc: fencing token kiểm tra ở tài nguyên đích, hoặc dùng ràng buộc của DB / hệ thống đồng thuận (etcd, ZooKeeper).</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Redis Cluster phân phối dữ liệu thế nào? Thao tác nhiều key gặp vấn đề gì?</summary><div class="ans">
+<p>16384 hash slot, slot = CRC16(key) mod 16384, mỗi master giữ một dải slot; client nhận <code>MOVED</code>/<code>ASK</code> khi slot di chuyển. Lệnh nhiều key, MULTI, Lua phải cùng slot, nếu không lỗi CROSSSLOT → dùng hash tag <code>{…}</code>, nhưng lạm dụng tag dồn dữ liệu vào một node (hot shard). Ghi bất đồng bộ nên không nhất quán mạnh.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Redis p99 tăng từ 1ms lên 200ms theo đợt mỗi vài phút. Hướng điều tra?</summary><div class="ans">
+<p>Trùng chu kỳ với BGSAVE/AOF rewrite (fork tốn thời gian khi RAM lớn, THP bật) → <code>INFO persistence</code> xem <code>latest_fork_usec</code>. Lệnh chậm định kỳ (job dọn dẹp dùng KEYS/DEL big key) → SLOWLOG. Hết hạn hàng loạt key cùng lúc, eviction mạnh. Phía client: GC, pool cạn, network. Dùng <code>LATENCY DOCTOR</code>, <code>INFO commandstats</code>, so dòng thời gian với cron.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Dùng Redis Streams hay RabbitMQ/Kafka cho hàng đợi công việc?</summary><div class="ans">
+<p>Streams hợp khi đã có Redis, khối lượng vừa RAM, cần consumer group và ack đơn giản. Nhược: dữ liệu trong RAM (chi phí, giới hạn), persistence/replication bất đồng bộ, retry/DLQ phải tự dựng (XPENDING, XAUTOCLAIM). RabbitMQ khi cần định tuyến, retry/DLX sẵn có; Kafka khi cần retention dài, replay, thông lượng rất lớn và nhiều consumer độc lập.</p></div></details>
+</section>
+
+<section class="doc" id="iv-system" data-group="Thiết kế hệ thống"><p class="group-label">Thiết kế hệ thống</p>
+<h2>Câu hỏi tổng hợp</h2>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Idempotency là gì, làm sao thiết kế API tạo đơn hàng idempotent?</summary><div class="ans">
+<p>Gọi nhiều lần cho cùng kết quả như gọi một lần. Client gửi <code>Idempotency-Key</code>; server lưu key (unique) cùng kết quả lần đầu, lần sau trả lại kết quả cũ; đang xử lý thì trả 409. Lưu key ở DB trong cùng transaction tạo đơn là chắc chắn nhất; Redis nhanh hơn nhưng có rủi ro mất khi failover.</p></div></details>
+
+<details class="qa" data-level="middle"><summary><span class="badge lv-middle">Middle</span>Khi nào dùng message queue thay vì gọi HTTP đồng bộ giữa hai service?</summary><div class="ans">
+<p>Khi bên gọi không cần kết quả ngay, cần chịu được bên nhận chậm/chết tạm thời, cần san tải đột biến, hoặc một sự kiện có nhiều bên quan tâm. Đánh đổi: nhất quán cuối cùng, khó debug hơn, cần idempotency, giám sát queue/lag.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Thiết kế hệ thống chặn bot/fraud cho storefront: hàng nghìn request/giây, quyết định trong &lt; 50ms.</summary><div class="ans">
+<p>Đường nóng chỉ đọc: rule và cấu hình shop cache nhiều tầng (in-process + Redis), cập nhật qua sự kiện; tra IP/ASN bằng DB cục bộ (MaxMind) hoặc cache; rate limit bằng Redis Lua. Mọi việc ghi (lưu visit, thống kê) đẩy bất đồng bộ qua queue/stream, ghi batch. Enrichment chậm (proxy check API) chạy bất đồng bộ, kết quả dùng cho lần sau. Timeout chặt + fallback "cho qua" hay "chặn" tùy chính sách. Đo p99 từng bước, giới hạn concurrency upstream, scale ngang stateless.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Saga khác distributed transaction (2PC) thế nào? Orchestration hay choreography?</summary><div class="ans">
+<p>2PC khóa tài nguyên giữa các service, phụ thuộc coordinator, kém sẵn sàng. Saga là chuỗi transaction cục bộ, lỗi thì chạy hành động bù trừ; chấp nhận trạng thái trung gian. Choreography: service phản ứng theo event, ít phụ thuộc nhưng khó theo dõi luồng. Orchestration: một bộ điều phối ra lệnh từng bước, dễ quan sát và xử lý timeout, nhưng tập trung logic. Cả hai cần idempotency và outbox.</p></div></details>
+
+<details class="qa" data-level="senior"><summary><span class="badge lv-senior">Senior</span>Một sự cố production lớn bạn từng xử lý: kể theo cấu trúc nào?</summary><div class="ans">
+<p>Bối cảnh và ảnh hưởng (bao nhiêu người dùng, bao lâu); cách phát hiện; các bước giảm thiệt hại; cách tìm nguyên nhân gốc (dữ liệu, giả thuyết bị loại); sửa chữa; hành động phòng ngừa (monitoring, test, thay đổi quy trình); bài học. Người phỏng vấn đánh giá tư duy có hệ thống và trách nhiệm, không phải độ kịch tính.</p></div></details>
+</section>
+</div>
 </main>
 </div>
 <a class="to-top" href="#top">↑ Đầu trang</a>
@@ -5112,7 +5648,7 @@ await redis.xadd('visits', 'MAXLEN', '~', 1_000_000, '*', 'shop', shop, 'ip', ip
     tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.tab === name)); });
     document.querySelectorAll('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
     document.querySelectorAll('[data-for]').forEach(function (n) { n.hidden = n.dataset.for.split(' ').indexOf(name) === -1; });
-    document.title = 'Sổ tay ' + ({ nest: 'NestJS', java: 'Java', rabbit: 'RabbitMQ', kafka: 'Kafka', redis: 'Redis' })[name];
+    document.title = 'Sổ tay ' + ({ nest: 'NestJS', java: 'Java', rabbit: 'RabbitMQ', kafka: 'Kafka', redis: 'Redis', incidents: 'sự cố production', interview: 'phỏng vấn' })[name];
     try { localStorage.setItem('handbook-tab', name); } catch (e) {}
     if (search.value) { search.value = ''; filter(); }
   }
@@ -5126,7 +5662,7 @@ await redis.xadd('visits', 'MAXLEN', '~', 1_000_000, '*', 'shop', shop, 'ip', ip
   tabs.forEach(function (t) {
     t.addEventListener('click', function () {
       activate(t.dataset.tab);
-      history.replaceState(null, '', '#' + ({ nest: 'tong-quan', java: 'j-tong-quan', rabbit: 'r-tong-quan', kafka: 'k-tong-quan', redis: 'rd-tong-quan' })[t.dataset.tab]);
+      history.replaceState(null, '', '#' + ({ nest: 'tong-quan', java: 'j-tong-quan', rabbit: 'r-tong-quan', kafka: 'k-tong-quan', redis: 'rd-tong-quan', incidents: 'pr-quy-trinh', interview: 'iv-cach-dung' })[t.dataset.tab]);
       window.scrollTo(0, 0);
     });
   });
@@ -5151,8 +5687,25 @@ await redis.xadd('visits', 'MAXLEN', '~', 1_000_000, '*', 'shop', shop, 'ip', ip
   if (!fromHash()) {
     var saved = null;
     try { saved = localStorage.getItem('handbook-tab'); } catch (e) {}
-    activate(['java', 'rabbit', 'kafka', 'redis'].indexOf(saved) !== -1 ? saved : 'nest');
+    activate(['java', 'rabbit', 'kafka', 'redis', 'incidents', 'interview'].indexOf(saved) !== -1 ? saved : 'nest');
   }
+
+  // lọc câu hỏi phỏng vấn theo cấp
+  var lvlBtns = document.querySelectorAll('.lvl-btn[data-level]');
+  lvlBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var lv = b.dataset.level;
+      lvlBtns.forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      document.querySelectorAll('.qa').forEach(function (q) { q.hidden = lv !== 'all' && q.dataset.level !== lv; });
+    });
+  });
+  var qaToggle = document.getElementById('qaToggle');
+  if (qaToggle) qaToggle.addEventListener('click', function () {
+    var open = qaToggle.dataset.open !== '1';
+    document.querySelectorAll('.qa').forEach(function (q) { q.open = open; });
+    qaToggle.dataset.open = open ? '1' : '';
+    qaToggle.textContent = open ? 'Thu gọn đáp án' : 'Mở tất cả đáp án';
+  });
 
   var links = {};
   document.querySelectorAll('.tocNav a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });

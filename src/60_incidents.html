@@ -1,0 +1,291 @@
+</div>
+<div class="panel" data-panel="incidents" role="tabpanel" aria-labelledby="tab-incidents" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Runbook xử lý sự cố</p>
+  <h1>Sự cố production</h1>
+  <p class="lead">Các lỗi hay gặp khi chạy NestJS, Java, RabbitMQ, Kafka và Redis trên production. Mỗi sự cố ghi rõ triệu chứng nhìn thấy, nguyên nhân thường gặp, lệnh/công cụ để chẩn đoán, và cách xử lý cùng phòng ngừa.</p>
+  <div class="stats"><span><b>__SECTIONS_incidents__</b> chủ đề</span><span><b>__CODES_incidents__</b> đoạn lệnh/code</span></div>
+</div>
+
+<section class="doc" id="pr-quy-trinh" data-group="Chung">
+<h2>Quy trình khi có sự cố</h2>
+<ol class="pipeline">
+  <li class="k-in"><b>Giảm thiệt hại trước</b><span>Rollback bản deploy gần nhất, tắt feature flag, scale thêm, chặn traffic xấu. Tìm nguyên nhân gốc sau.</span></li>
+  <li><b>Thu thập bằng chứng trước khi restart</b><span>Restart xóa mất trạng thái lỗi. Lấy heap dump / thread dump / log / metric trước nếu còn kịp.</span></li>
+  <li class="k-guard"><b>Khoanh vùng</b><span>Bắt đầu từ lúc nào? Trùng với deploy, thay đổi cấu hình, đợt traffic hay sự cố hạ tầng nào? Một instance hay tất cả?</span></li>
+  <li class="k-int"><b>Đi theo đường đi của request</b><span>Load balancer → app → DB/cache/broker → API ngoài. Thành phần nào có độ trễ hoặc tỉ lệ lỗi tăng đầu tiên?</span></li>
+  <li class="k-pipe"><b>Sửa và xác nhận</b><span>Xác nhận bằng metric (latency, error rate, lag) trở về bình thường, không chỉ bằng "hết thấy lỗi trong log".</span></li>
+  <li class="k-core"><b>Postmortem không đổ lỗi</b><span>Dòng thời gian, nguyên nhân gốc, vì sao không phát hiện sớm, hành động phòng ngừa có người chịu trách nhiệm.</span></li>
+</ol>
+<div class="note tip"><span class="nt">Bốn tín hiệu vàng</span><p>Mọi service nên có dashboard cho <strong>latency</strong> (p50/p95/p99), <strong>traffic</strong>, <strong>error rate</strong>, <strong>saturation</strong> (CPU, RAM, pool kết nối, độ dài queue, consumer lag). Hầu hết sự cố dưới đây lộ ra qua một trong bốn tín hiệu này trước khi người dùng phàn nàn.</p></div>
+</section>
+
+<section class="doc" id="pr-nest" data-group="Theo công nghệ">
+<h2>NestJS / Node.js</h2>
+
+<div class="inc"><h3>Bộ nhớ tăng dần, pod bị OOMKilled rồi restart liên tục</h3><dl>
+<dt>Triệu chứng</dt><dd>RSS/heap tăng đều theo thời gian, không giảm sau GC; restart xong lại tăng. Log có <c>JavaScript heap out of memory</c> hoặc Kubernetes báo <c>OOMKilled</c>.</dd>
+<dt>Nguyên nhân</dt><dd><c>Map</c>/mảng dùng làm cache không giới hạn; listener (<c>emitter.on</c>, <c>setInterval</c>) đăng ký mỗi request mà không gỡ; closure giữ object lớn; query Mongo trả hàng chục nghìn document không <c>lean()</c>; buffer cả file upload vào RAM.</dd>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="bash">
+node --heapsnapshot-signal=SIGUSR2 dist/main.js   # gửi kill -USR2 <pid> để chụp heap
+# so sánh 2 snapshot cách nhau vài phút trong Chrome DevTools → Memory → Comparison
+node --max-old-space-size=1536 dist/main.js       # đặt heap phù hợp limit container (~75%)
+</pre></dd>
+<dt>Xử lý</dt><dd>Cache có giới hạn (LRU + TTL, ví dụ <c>lru-cache</c>) hoặc chuyển sang Redis; gỡ listener trong <c>onModuleDestroy</c>; phân trang/stream khi đọc dữ liệu lớn; <c>memoryStorage</c> của Multer chỉ cho file nhỏ.</dd>
+</dl></div>
+
+<div class="inc"><h3>Latency tăng vọt, health check timeout dù CPU không cao lắm</h3><dl>
+<dt>Triệu chứng</dt><dd>Mọi endpoint chậm cùng lúc, kể cả <c>/health</c>; p99 nhảy lên hàng giây theo từng đợt.</dd>
+<dt>Nguyên nhân</dt><dd><strong>Event loop bị chặn</strong>: hàm đồng bộ nặng (<c>bcrypt.hashSync</c>, <c>crypto.pbkdf2Sync</c>, <c>JSON.parse</c> payload vài chục MB, vòng lặp lớn), regex backtracking thảm họa với input xấu, <c>fs.readFileSync</c> trong request.</dd>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="ts">
+import { monitorEventLoopDelay } from 'node:perf_hooks';
+const h = monitorEventLoopDelay({ resolution: 20 });
+h.enable();
+setInterval(() => { logger.log(`event loop p99=${(h.percentile(99) / 1e6).toFixed(0)}ms`); h.reset(); }, 10_000);
+// tìm hàm nóng: node --cpu-prof dist/main.js rồi mở file .cpuprofile trong DevTools
+</pre></dd>
+<dt>Xử lý</dt><dd>Dùng API async (<c>bcrypt.hash</c>, <c>argon2</c>), đẩy việc CPU sang <c>worker_threads</c> hoặc queue; giới hạn kích thước body; viết lại regex hoặc giới hạn độ dài input; thêm metric event loop lag vào dashboard.</dd>
+</dl></div>
+
+<div class="inc"><h3>Process chết đột ngột vì unhandled rejection</h3><dl>
+<dt>Triệu chứng</dt><dd>Pod restart, log cuối là <c>UnhandledPromiseRejection</c> hoặc stack trace của một promise không ai <c>await</c>.</dd>
+<dt>Nguyên nhân</dt><dd>Gọi hàm async "bắn rồi quên" (<c>this.audit.log(x)</c> không await, không catch). Từ Node 15, rejection không xử lý làm sập process.</dd>
+<dt>Xử lý</dt><dd>Mọi lời gọi không await phải có <c>.catch()</c>: <c>void this.audit.log(x).catch((e) =&gt; logger.warn(e))</c>. Bật rule ESLint <c>@typescript-eslint/no-floating-promises</c>. Việc quan trọng thì đưa vào queue thay vì fire-and-forget.</dd>
+</dl></div>
+
+<div class="inc"><h3>Deploy xong ứng dụng không khởi động: "Nest can't resolve dependencies"</h3><dl>
+<dt>Triệu chứng</dt><dd>Local chạy được, bản build production crash ngay khi start; hoặc một provider nhận <c>undefined</c>.</dd>
+<dt>Nguyên nhân</dt><dd>Circular import qua file barrel <c>index.ts</c> (thứ tự nạp module khác giữa tsc/SWC/bundle); quên export provider; biến môi trường thiếu làm factory ném lỗi.</dd>
+<dt>Xử lý</dt><dd>Thêm bước CI khởi động app thật (smoke test gọi <c>/health</c>) trước khi deploy; bỏ barrel import trong cùng thư mục; validate env khi boot để lỗi rõ ràng; rollout từng phần (canary) để phát hiện sớm.</dd>
+</dl></div>
+
+<div class="inc"><h3>MongoDB chậm, request treo, lỗi "MongoServerSelectionError"/ pool timeout</h3><dl>
+<dt>Triệu chứng</dt><dd>Latency DB tăng, CPU Mongo cao, request xếp hàng chờ connection; có thể kèm <c>MongoWaitQueueTimeoutError</c>.</dd>
+<dt>Nguyên nhân</dt><dd>Query thiếu index (COLLSCAN); <c>$regex</c> không có prefix; <c>countDocuments</c> trên collection lớn mỗi request; <c>maxPoolSize</c> quá nhỏ so với số request đồng thời, hoặc query chậm giữ connection lâu.</dd>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="js">
+db.setProfilingLevel(1, { slowms: 100 });              // ghi query > 100ms vào system.profile
+db.system.profile.find().sort({ ts: -1 }).limit(10);
+db.orders.find({ shop: 'demo', status: 'open' }).explain('executionStats');
+// totalDocsExamined >> nReturned hoặc stage COLLSCAN → thiếu index
+</pre></dd>
+<dt>Xử lý</dt><dd>Index ghép theo thứ tự Equality → Sort → Range; <c>lean()</c> + projection; đặt <c>maxTimeMS</c> cho query; cache đếm tổng; tăng pool có cân nhắc (pool lớn không chữa được query chậm).</dd>
+</dl></div>
+
+<div class="inc"><h3>Mỗi lần deploy lại có 502 và mất message</h3><dl>
+<dt>Nguyên nhân</dt><dd>Pod nhận SIGTERM là chết ngay: request đang xử lý bị cắt, consumer bị đóng giữa chừng; load balancer vẫn gửi request tới pod đang tắt.</dd>
+<dt>Xử lý</dt><dd><c>app.enableShutdownHooks()</c>; readiness probe trả 503 khi đang tắt; <c>preStop: sleep 5</c>; consumer dừng nhận message mới rồi đợi message đang xử lý trong <c>onModuleDestroy</c>; <c>terminationGracePeriodSeconds</c> đủ dài. Chi tiết ở pattern <a href="#p-shutdown">Graceful shutdown</a>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Request dồn ứ khi API bên ngoài chậm</h3><dl>
+<dt>Triệu chứng</dt><dd>Một nhà cung cấp (IP lookup, Shopify API) chậm làm toàn bộ service chậm theo, số kết nối mở tăng vọt.</dd>
+<dt>Nguyên nhân</dt><dd>Gọi HTTP không đặt timeout; retry không giới hạn và không backoff; không có circuit breaker.</dd>
+<dt>Xử lý</dt><dd>Timeout cho mọi lời gọi ra ngoài (connect + tổng); retry có backoff + jitter, chỉ cho thao tác idempotent; circuit breaker (ví dụ <c>opossum</c>); giới hạn concurrency tới từng upstream; có giá trị fallback (cache cũ, "unknown").</dd>
+</dl></div>
+</section>
+
+<section class="doc" id="pr-java" data-group="Theo công nghệ">
+<h2>Java / JVM</h2>
+
+<div class="inc"><h3>OutOfMemoryError: Java heap space</h3><dl>
+<dt>Triệu chứng</dt><dd>GC chạy liên tục, CPU cao, latency tăng rồi JVM ném OOM.</dd>
+<dt>Nguyên nhân</dt><dd>Rò rỉ: static <c>Map</c> làm cache không giới hạn, listener không gỡ, <c>ThreadLocal</c> không <c>remove()</c> trong pool; hoặc tải dữ liệu quá lớn một lần (<c>findAll()</c> cả bảng).</dd>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="bash">
+# luôn bật sẵn trên production
+-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dumps
+jcmd <pid> GC.class_histogram | head -30     # class nào chiếm nhiều nhất
+jcmd <pid> GC.heap_dump /dumps/now.hprof     # mở bằng Eclipse MAT → Leak Suspects
+</pre></dd>
+<dt>Xử lý</dt><dd>Cache có giới hạn (Caffeine với <c>maximumSize</c> + <c>expireAfterWrite</c>); phân trang/stream dữ liệu lớn; <c>ThreadLocal.remove()</c> trong <c>finally</c>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Container bị OOMKilled dù heap còn trống</h3><dl>
+<dt>Nguyên nhân</dt><dd>Bộ nhớ JVM = heap + metaspace + thread stack + direct buffer (Netty) + code cache + GC. Đặt <c>-Xmx</c> bằng đúng limit container thì phần ngoài heap làm vượt limit.</dd>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="bash">
+java -XX:NativeMemoryTracking=summary ...
+jcmd <pid> VM.native_memory summary
+</pre></dd>
+<dt>Xử lý</dt><dd>Dùng <c>-XX:MaxRAMPercentage=75</c> thay vì <c>-Xmx</c> cứng; giới hạn <c>-XX:MaxDirectMemorySize</c>, <c>-XX:MaxMetaspaceSize</c>; giảm số thread platform (dùng virtual threads).</dd>
+</dl></div>
+
+<div class="inc"><h3>Ứng dụng "treo": request không trả về, CPU thấp</h3><dl>
+<dt>Nguyên nhân</dt><dd>Thread pool cạn: mọi thread đang chờ I/O không timeout, chờ connection DB, hoặc deadlock; task trong pool chờ task khác cùng pool.</dd>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="bash">
+jcmd <pid> Thread.print > dump1.txt; sleep 5; jcmd <pid> Thread.print > dump2.txt
+# thread nào đứng yên ở cùng frame qua 2 dump? cuối file có mục "Found one Java-level deadlock"
+</pre></dd>
+<dt>Xử lý</dt><dd>Timeout cho mọi I/O và lần lấy lock (<c>tryLock</c>); tách pool cho từng loại việc (bulkhead); lấy lock theo thứ tự cố định; với I/O nhiều, chuyển sang virtual threads.</dd>
+</dl></div>
+
+<div class="inc"><h3>"Connection is not available, request timed out after 30000ms" (HikariCP)</h3><dl>
+<dt>Nguyên nhân</dt><dd>Rò rỉ connection (không đóng), transaction dài (gọi API ngoài bên trong <c>@Transactional</c>), pool quá nhỏ so với số thread, hoặc DB chậm.</dd>
+<dt>Xử lý</dt><dd>Bật <c>leakDetectionThreshold</c> để log stack nơi mượn connection; không gọi I/O ngoài trong transaction; theo dõi metric <c>hikaricp_connections_pending</c>; kích thước pool nhỏ và hợp lý (thường vài chục), không phải hàng trăm.</dd>
+</dl></div>
+
+<div class="inc"><h3>GC pause dài, latency p99 xấu</h3><dl>
+<dt>Chẩn đoán</dt><dd><c>-Xlog:gc*:file=gc.log:time,uptime</c>, xem thời gian pause và tần suất Full GC; JFR để xem allocation rate theo method.</dd>
+<dt>Xử lý</dt><dd>Heap quá nhỏ → tăng; tốc độ cấp phát quá cao → giảm tạo object tạm (stream lồng nhau, boxing, chuỗi lớn); cần pause rất ngắn → thử ZGC; tránh <c>System.gc()</c>.</dd>
+</dl></div>
+
+<div class="inc"><h3>CPU 100% trên một core</h3><dl>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="bash">
+top -H -p <pid>                        # tìm thread id (TID) tốn CPU
+printf '%x\n' <TID>                    # đổi sang hex
+jcmd <pid> Thread.print | grep -A 20 'nid=0x<hex>'
+</pre></dd>
+<dt>Nguyên nhân</dt><dd>Vòng lặp vô hạn, regex backtracking, retry không có delay, <c>HashMap</c> dùng chung không đồng bộ giữa các thread.</dd>
+</dl></div>
+
+<div class="inc"><h3>Thông lượng sụt sau khi chuyển sang virtual threads</h3><dl>
+<dt>Nguyên nhân</dt><dd>JDK 21–23: blocking bên trong <c>synchronized</c> làm virtual thread bị ghim vào carrier; thư viện cũ (driver JDBC) dùng <c>synchronized</c> nhiều. Hoặc pool tài nguyên (DB) nhỏ trong khi số virtual thread không giới hạn.</dd>
+<dt>Xử lý</dt><dd>Nâng JDK 24+; kiểm tra JFR event <c>jdk.VirtualThreadPinned</c>; giới hạn đồng thời bằng <c>Semaphore</c> trước tài nguyên khan hiếm.</dd>
+</dl></div>
+</section>
+
+<section class="doc" id="pr-rabbit" data-group="Theo công nghệ">
+<h2>RabbitMQ</h2>
+
+<div class="inc"><h3>Queue tồn đọng tăng mãi</h3><dl>
+<dt>Triệu chứng</dt><dd>Số message "Ready" tăng liên tục; xử lý nghiệp vụ bị trễ hàng giờ.</dd>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="bash">
+rabbitmqctl list_queues name messages_ready messages_unacknowledged consumers
+# consumers = 0 → consumer chết/mất kết nối; unacked cao + ready cao → consumer chậm hoặc kẹt
+</pre></dd>
+<dt>Xử lý</dt><dd>Khôi phục consumer; scale ngang; tìm bước chậm (API ngoài, DB); tối ưu prefetch; cảnh báo theo độ dài queue và tuổi message cũ nhất; đặt <c>max-length</c> để bảo vệ broker.</dd>
+</dl></div>
+
+<div class="inc"><h3>Publisher bị treo: memory/disk alarm</h3><dl>
+<dt>Triệu chứng</dt><dd>Lệnh publish không trả về; UI báo connection ở trạng thái <c>blocked</c>/<c>blocking</c>; log broker có <c>memory resource limit alarm set</c> hoặc <c>disk resource limit alarm</c>.</dd>
+<dt>Nguyên nhân</dt><dd>Broker chạm <c>vm_memory_high_watermark</c> hoặc <c>disk_free_limit</c>, thường do tồn đọng lớn hoặc message quá to.</dd>
+<dt>Xử lý</dt><dd>Xả tồn đọng (thêm consumer, purge queue rác), thêm đĩa/RAM; về lâu dài: max-length cho queue, dùng stream cho khối lượng lớn, không gửi payload lớn qua broker (lưu S3, gửi link). Ở client, lắng nghe sự kiện <c>blocked</c> để báo động thay vì treo im lặng.</dd>
+</dl></div>
+
+<div class="inc"><h3>Poison message quay vòng vô hạn</h3><dl>
+<dt>Triệu chứng</dt><dd>CPU consumer cao, cùng một lỗi lặp lại liên tục trong log, message có cờ <c>redelivered=true</c>; queue không giảm.</dd>
+<dt>Nguyên nhân</dt><dd>Consumer <c>nack(requeue=true)</c> cho lỗi vĩnh viễn (JSON sai, dữ liệu không hợp lệ).</dd>
+<dt>Xử lý</dt><dd>Quorum queue với <c>delivery-limit</c> + DLX; phân loại lỗi tạm thời và vĩnh viễn; retry có độ trễ; parking lot queue cho người xem xét. Xem pattern <a href="#r-p-retry">Retry có độ trễ</a>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Channel bị đóng: "PRECONDITION_FAILED - delivery acknowledgement timed out"</h3><dl>
+<dt>Nguyên nhân</dt><dd>Consumer giữ message chưa ack quá consumer timeout (docs nêu mặc định 30 phút): job quá dài, hoặc có nhánh code quên ack/nack nên message treo mãi tới khi channel bị đóng.</dd>
+<dt>Xử lý</dt><dd>Đảm bảo mọi nhánh đều ack hoặc nack (dùng <c>try/finally</c>); việc rất dài thì ack sớm rồi theo dõi trạng thái trong DB, hoặc chia nhỏ; tăng <c>consumer_timeout</c> chỉ khi thật sự cần.</dd>
+</dl></div>
+
+<div class="inc"><h3>Mất message</h3><dl>
+<dt>Nguyên nhân</dt><dd>Một trong các mắt xích thiếu: không publisher confirm; message không persistent; queue không durable/classic không replicate khi node chết; auto-ack; routing key không khớp binding nào nên message bị bỏ im lặng; DLX chưa tồn tại lúc dead-letter.</dd>
+<dt>Xử lý</dt><dd>Quorum queue + persistent + confirm + manual ack; publish với <c>mandatory</c> hoặc alternate exchange để bắt message không định tuyến được; khai báo topology (exchange, DLX) lúc khởi động.</dd>
+</dl></div>
+
+<div class="inc"><h3>Ứng dụng không khởi động: "PRECONDITION_FAILED - inequivalent arg"</h3><dl>
+<dt>Nguyên nhân</dt><dd>Code mới khai báo lại queue với <c>x-arguments</c> khác queue đang tồn tại (thêm DLX, đổi sang quorum).</dd>
+<dt>Xử lý</dt><dd>Tham số đổi được thì chuyển sang <strong>policy</strong>; đổi loại queue thì tạo queue mới (<c>orders.v2</c>), bind song song, chuyển consumer, xả queue cũ rồi xóa.</dd>
+</dl></div>
+
+<div class="inc"><h3>Quá nhiều connection/channel, broker hết file descriptor</h3><dl>
+<dt>Nguyên nhân</dt><dd>Mở connection mới cho mỗi lần publish; channel không đóng; autoscale tạo hàng trăm pod mỗi pod nhiều connection.</dd>
+<dt>Xử lý</dt><dd>Một connection dùng lâu dài mỗi process (tách publish/consume), pool channel; giới hạn bằng <c>rabbitmqctl set_vhost_limits</c>; theo dõi tốc độ mở/đóng connection (churn).</dd>
+</dl></div>
+</section>
+
+<section class="doc" id="pr-kafka" data-group="Theo công nghệ">
+<h2>Kafka</h2>
+
+<div class="inc"><h3>Consumer lag tăng liên tục</h3><dl>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="bash">
+kafka-consumer-groups.sh --bootstrap-server $B --describe --group risk
+# LAG lệch ở vài partition → key nóng hoặc consumer của partition đó chậm
+# LAG đều mọi partition → consumer tổng thể không theo kịp
+</pre></dd>
+<dt>Nguyên nhân</dt><dd>Xử lý từng record chậm (gọi API/DB tuần tự); số consumer đã bằng số partition; rebalance liên tục; key nóng dồn vào một partition.</dd>
+<dt>Xử lý</dt><dd>Xử lý theo batch, song song bên trong partition theo key (giữ thứ tự từng key); tăng partition (chú ý ánh xạ key thay đổi); tách việc chậm sang topic/queue khác; cảnh báo theo lag và theo "thời gian trễ" ước tính.</dd>
+</dl></div>
+
+<div class="inc"><h3>Rebalance liên tục ("rebalance storm")</h3><dl>
+<dt>Triệu chứng</dt><dd>Log lặp lại <c>Attempt to heartbeat failed since group is rebalancing</c>, <c>consumer poll timeout has expired</c>; thông lượng gần như bằng 0.</dd>
+<dt>Nguyên nhân</dt><dd>Xử lý một batch lâu hơn <c>max.poll.interval.ms</c> nên consumer bị đá khỏi group, partition chuyển đi, lại xử lý lại; deploy rolling làm group rebalance nhiều lần.</dd>
+<dt>Xử lý</dt><dd>Giảm <c>max.poll.records</c>, tăng <c>max.poll.interval.ms</c> cho việc nặng; static membership (<c>group.instance.id</c>); dùng giao thức mới <c>group.protocol=consumer</c> (Kafka 4.0+) để rebalance tăng dần, ít gián đoạn.</dd>
+</dl></div>
+
+<div class="inc"><h3>Poison pill làm kẹt cả partition</h3><dl>
+<dt>Triệu chứng</dt><dd>Lag của một partition đứng yên, log lặp <c>SerializationException</c> hoặc lỗi xử lý ở cùng một offset.</dd>
+<dt>Xử lý</dt><dd>Bắt lỗi deserialize (Spring: <c>ErrorHandlingDeserializer</c>), gửi record lỗi sang DLT rồi commit để đi tiếp; khẩn cấp có thể nhảy qua offset: <c>kafka-consumer-groups.sh --reset-offsets --shift-by 1 --topic t:partition</c> (khi group đang dừng).</dd>
+</dl></div>
+
+<div class="inc"><h3>Xử lý trùng sau khi restart hoặc rebalance</h3><dl>
+<dt>Nguyên nhân</dt><dd>At-least-once là mặc định: xử lý xong nhưng chưa kịp commit thì consumer chết, consumer mới đọc lại từ offset cũ.</dd>
+<dt>Xử lý</dt><dd>Consumer idempotent (bảng processed với unique key, upsert theo khóa nghiệp vụ); commit thường xuyên hơn; Kafka → Kafka thì dùng transaction/exactly-once.</dd>
+</dl></div>
+
+<div class="inc"><h3>Mất dữ liệu: consumer bỏ qua message</h3><dl>
+<dt>Nguyên nhân</dt><dd><c>auto.offset.reset=latest</c> với group mới hoặc offset đã hết hạn (group ngừng lâu hơn retention offset) nên consumer nhảy về cuối; lag lớn hơn retention nên dữ liệu bị xóa trước khi đọc; <c>acks=1</c> và leader chết trước khi replica sao chép.</dd>
+<dt>Xử lý</dt><dd><c>auto.offset.reset=earliest</c> cho group quan trọng; cảnh báo khi lag tiến gần retention; <c>acks=all</c> + <c>min.insync.replicas=2</c> + RF 3; giữ <c>unclean.leader.election.enable=false</c>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Producer báo NotEnoughReplicas / timeout khi một broker chết</h3><dl>
+<dt>Nguyên nhân</dt><dd>RF=2 với <c>min.insync.replicas=2</c>: chỉ cần một broker chết là không ghi được. Hoặc broker quá tải khiến ISR co lại.</dd>
+<dt>Xử lý</dt><dd>RF=3, min.insync=2 (chịu được mất một broker); theo dõi metric under-replicated partitions; producer có <c>delivery.timeout.ms</c> hợp lý và xử lý callback lỗi.</dd>
+</dl></div>
+
+<div class="inc"><h3>Broker đầy đĩa</h3><dl>
+<dt>Xử lý</dt><dd>Khẩn cấp: giảm <c>retention.ms</c> của topic lớn nhất (<c>kafka-configs.sh --alter --add-config retention.ms=...</c>), Kafka xóa segment cũ trong vài phút. Lâu dài: tính dung lượng = thông lượng × retention × RF, cảnh báo ở 70%, bật nén (<c>zstd</c>), xem xét tiered storage.</dd>
+</dl></div>
+</section>
+
+<section class="doc" id="pr-redis" data-group="Theo công nghệ">
+<h2>Redis</h2>
+
+<div class="inc"><h3>Latency Redis tăng đột biến</h3><dl>
+<dt>Chẩn đoán</dt><dd>
+<pre data-lang="bash">
+redis-cli SLOWLOG GET 20          # lệnh chậm gần nhất
+redis-cli LATENCY DOCTOR
+redis-cli --bigkeys               # key lớn bất thường
+redis-cli INFO commandstats       # lệnh nào tốn thời gian nhất
+</pre></dd>
+<dt>Nguyên nhân</dt><dd><c>KEYS *</c>; <c>HGETALL</c>/<c>SMEMBERS</c>/<c>LRANGE 0 -1</c> trên big key; <c>DEL</c> key hàng triệu phần tử; script Lua chạy lâu; fork cho RDB/AOF rewrite trên máy bật transparent huge pages.</dd>
+<dt>Xử lý</dt><dd><c>SCAN</c>/<c>HSCAN</c>; chia nhỏ big key; <c>UNLINK</c> thay <c>DEL</c>; tắt THP (<c>echo never &gt; /sys/kernel/mm/transparent_hugepage/enabled</c>); đặt lệnh nguy hiểm sau ACL.</dd>
+</dl></div>
+
+<div class="inc"><h3>"OOM command not allowed when used memory &gt; 'maxmemory'"</h3><dl>
+<dt>Nguyên nhân</dt><dd>Policy <c>noeviction</c> và bộ nhớ đầy: key không có TTL tích tụ, stream không trim, job BullMQ hoàn thành không xóa.</dd>
+<dt>Xử lý</dt><dd>Tìm prefix chiếm nhiều bộ nhớ (<c>--bigkeys</c>, <c>MEMORY USAGE key</c>, phân tích RDB); thêm TTL; <c>MAXLEN</c> cho stream; <c>removeOnComplete</c> cho BullMQ; instance cache dùng <c>allkeys-lru</c>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Job/khóa biến mất bí ẩn</h3><dl>
+<dt>Nguyên nhân</dt><dd>Queue/khóa nằm chung instance với cache dùng <c>allkeys-lru</c>: khi đầy, Redis xóa luôn key của queue.</dd>
+<dt>Xử lý</dt><dd>Tách instance: cache (<c>allkeys-lru</c>) và dữ liệu cần bền (<c>noeviction</c> + persistence); theo dõi <c>evicted_keys</c> trong <c>INFO stats</c>.</dd>
+</dl></div>
+
+<div class="inc"><h3>Database quá tải sau khi Redis restart / flush (cache stampede)</h3><dl>
+<dt>Xử lý</dt><dd>Single-flight / khóa ngắn khi rebuild key; TTL có jitter; warm-up cache key nóng trước khi mở traffic; circuit breaker bảo vệ DB. Xem pattern <a href="#rd-p-cache">Cache-aside</a>.</dd>
+</dl></div>
+
+<div class="inc"><h3>"ERR max number of clients reached"</h3><dl>
+<dt>Nguyên nhân</dt><dd>Tạo client Redis mới cho mỗi request hoặc mỗi job mà không đóng; nhiều pod × pool lớn.</dd>
+<dt>Xử lý</dt><dd>Một client dùng chung cho mỗi process (ioredis, Lettuce multiplex); kiểm tra bằng <c>CLIENT LIST</c> nhóm theo <c>name</c>/<c>addr</c>; đặt tên client (<c>connectionName</c>) để biết service nào rò rỉ; <c>timeout</c> để dọn connection idle.</dd>
+</dl></div>
+
+<div class="inc"><h3>Hai worker cùng chạy một job dù đã có khóa</h3><dl>
+<dt>Nguyên nhân</dt><dd>Job chạy lâu hơn TTL của khóa nên khóa hết hạn, worker khác lấy được; giải phóng khóa bằng <c>DEL</c> thẳng (xóa luôn khóa của người khác).</dd>
+<dt>Xử lý</dt><dd>TTL dài hơn thời gian chạy tối đa hoặc gia hạn định kỳ (watchdog như Redisson); giải phóng bằng Lua kiểm tra token; thao tác cuối cùng dựa trên ràng buộc DB (unique, version) để an toàn tuyệt đối.</dd>
+</dl></div>
+
+<div class="inc"><h3>Lỗi CROSSSLOT sau khi chuyển sang Redis Cluster</h3><dl>
+<dt>Nguyên nhân</dt><dd><c>MGET</c>, <c>MULTI</c>, Lua với nhiều key nằm khác slot.</dd>
+<dt>Xử lý</dt><dd>Đặt hash tag cho nhóm key cần thao tác cùng nhau (<c>rl:{'{'}shop-1{'}'}:min</c>, <c>rl:{'{'}shop-1{'}'}:hour</c>); kiểm tra trước bằng <c>CLUSTER KEYSLOT</c>; tránh lệnh nhiều key không cần thiết.</dd>
+</dl></div>
+
+<div class="inc"><h3>Subscriber Pub/Sub mất message hoặc bị ngắt kết nối</h3><dl>
+<dt>Nguyên nhân</dt><dd>Pub/Sub không lưu: client đang reconnect là mất; subscriber chậm làm output buffer vượt <c>client-output-buffer-limit pubsub</c> nên bị server ngắt.</dd>
+<dt>Xử lý</dt><dd>Chỉ dùng Pub/Sub cho tín hiệu có thể mất (invalidate cache, kèm TTL dự phòng); việc cần chắc chắn thì dùng Streams/queue.</dd>
+</dl></div>
+</section>

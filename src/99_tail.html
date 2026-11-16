@@ -34,7 +34,7 @@
     tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.tab === name)); });
     document.querySelectorAll('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
     document.querySelectorAll('[data-for]').forEach(function (n) { n.hidden = n.dataset.for.split(' ').indexOf(name) === -1; });
-    document.title = 'Sổ tay ' + ({ nest: 'NestJS', java: 'Java', rabbit: 'RabbitMQ', kafka: 'Kafka', redis: 'Redis' })[name];
+    document.title = 'Sổ tay ' + ({ nest: 'NestJS', java: 'Java', rabbit: 'RabbitMQ', kafka: 'Kafka', redis: 'Redis', incidents: 'sự cố production', interview: 'phỏng vấn' })[name];
     try { localStorage.setItem('handbook-tab', name); } catch (e) {}
     if (search.value) { search.value = ''; filter(); }
   }
@@ -48,7 +48,7 @@
   tabs.forEach(function (t) {
     t.addEventListener('click', function () {
       activate(t.dataset.tab);
-      history.replaceState(null, '', '#' + ({ nest: 'tong-quan', java: 'j-tong-quan', rabbit: 'r-tong-quan', kafka: 'k-tong-quan', redis: 'rd-tong-quan' })[t.dataset.tab]);
+      history.replaceState(null, '', '#' + ({ nest: 'tong-quan', java: 'j-tong-quan', rabbit: 'r-tong-quan', kafka: 'k-tong-quan', redis: 'rd-tong-quan', incidents: 'pr-quy-trinh', interview: 'iv-cach-dung' })[t.dataset.tab]);
       window.scrollTo(0, 0);
     });
   });
@@ -73,8 +73,25 @@
   if (!fromHash()) {
     var saved = null;
     try { saved = localStorage.getItem('handbook-tab'); } catch (e) {}
-    activate(['java', 'rabbit', 'kafka', 'redis'].indexOf(saved) !== -1 ? saved : 'nest');
+    activate(['java', 'rabbit', 'kafka', 'redis', 'incidents', 'interview'].indexOf(saved) !== -1 ? saved : 'nest');
   }
+
+  // lọc câu hỏi phỏng vấn theo cấp
+  var lvlBtns = document.querySelectorAll('.lvl-btn[data-level]');
+  lvlBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var lv = b.dataset.level;
+      lvlBtns.forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      document.querySelectorAll('.qa').forEach(function (q) { q.hidden = lv !== 'all' && q.dataset.level !== lv; });
+    });
+  });
+  var qaToggle = document.getElementById('qaToggle');
+  if (qaToggle) qaToggle.addEventListener('click', function () {
+    var open = qaToggle.dataset.open !== '1';
+    document.querySelectorAll('.qa').forEach(function (q) { q.open = open; });
+    qaToggle.dataset.open = open ? '1' : '';
+    qaToggle.textContent = open ? 'Thu gọn đáp án' : 'Mở tất cả đáp án';
+  });
 
   var links = {};
   document.querySelectorAll('.tocNav a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
