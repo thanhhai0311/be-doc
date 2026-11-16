@@ -1,0 +1,366 @@
+</div>
+<div class="panel" data-panel="rabbit" role="tabpanel" aria-labelledby="tab-rabbit" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Tổng hợp từ rabbitmq.com/docs (series 4.4)</p>
+  <h1>Sổ tay RabbitMQ</h1>
+  <p class="lead">Message broker cho hàng đợi công việc và định tuyến sự kiện: exchange, queue type, confirm/ack, dead-letter, retry. Mỗi phần có ví dụ cho cả NestJS và Java, cùng các pattern hay dùng trong production.</p>
+  <div class="stats"><span><b>__SECTIONS_rabbit__</b> chủ đề</span><span><b>__CODES_rabbit__</b> ví dụ code</span><span>Bản mới nhất <b>4.4.0</b> (20/10/2026)</span></div>
+</div>
+
+<section class="doc" id="r-tong-quan" data-group="Khái niệm">
+<h2>RabbitMQ là gì</h2>
+<p>RabbitMQ là <strong>message broker</strong>: producer gửi message tới broker, broker định tuyến vào các queue, consumer lấy message ra xử lý và xác nhận. Hai bên không cần biết nhau, không cần online cùng lúc. Giao thức chính là AMQP 0-9-1; từ 4.x, AMQP 1.0 được hỗ trợ sẵn (không cần plugin) và được docs khuyên dùng cho ứng dụng mới.</p>
+<ol class="pipeline">
+  <li class="k-in"><b>Producer</b><span>Publish message kèm <strong>routing key</strong> tới một <strong>exchange</strong>. Producer không gửi thẳng vào queue.</span></li>
+  <li class="k-int"><b>Exchange</b><span>So routing key với các <strong>binding</strong> để quyết định message vào queue nào (0, 1 hay nhiều queue).</span></li>
+  <li class="k-pipe"><b>Queue</b><span>Lưu message theo thứ tự FIFO cho tới khi được consumer xác nhận.</span></li>
+  <li class="k-guard"><b>Consumer</b><span>Nhận message (push), xử lý, rồi <c>ack</c> hoặc <c>nack</c>.</span></li>
+</ol>
+<h3>Thay đổi quan trọng ở 4.x</h3>
+<ul>
+  <li><strong>4.0</strong>: bỏ hẳn classic mirrored queue. Muốn sao chép dữ liệu giữa các node thì dùng quorum queue hoặc stream. <c>delivery-limit</c> mặc định của quorum queue là 20.</li>
+  <li><strong>4.3</strong>: Khepri (dựa trên Raft) là kho metadata duy nhất, thay Mnesia. Quorum queue có thêm delayed retry, priority 0–31, consumer timeout. Global QoS bị tắt mặc định.</li>
+  <li><strong>4.4</strong>: đặt replica quorum queue theo availability zone, delayed message qua <c>x-opt-delivery-time</c>.</li>
+</ul>
+<pre data-lang="bash">
+# chạy thử local, UI quản trị ở http://localhost:15672 (guest/guest chỉ dùng cho dev)
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4-management
+</pre>
+</section>
+
+<section class="doc" id="r-exchange" data-group="Khái niệm">
+<h2>Exchange và routing</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Loại</th><th>Cách định tuyến</th><th>Dùng khi</th></tr></thead>
+<tbody>
+<tr><td><c>direct</c></td><td>Routing key khớp chính xác binding key</td><td>Gửi việc theo loại cố định (<c>email</c>, <c>sms</c>)</td></tr>
+<tr><td><c>fanout</c></td><td>Bỏ qua routing key, copy tới mọi queue đã bind</td><td>Broadcast: mọi service đều cần biết</td></tr>
+<tr><td><c>topic</c></td><td>Khớp theo mẫu với các đoạn cách nhau bằng dấu chấm: <c>*</c> đúng một đoạn, <c>#</c> không hoặc nhiều đoạn</td><td>Sự kiện domain: <c>order.created</c>, <c>order.*</c>, <c>shop.#</c></td></tr>
+<tr><td><c>headers</c></td><td>Khớp theo header; <c>x-match</c> = <c>all</c> hoặc <c>any</c></td><td>Định tuyến theo nhiều thuộc tính</td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr><th>Binding (exchange topic)</th><th><c>order.created</c></th><th><c>order.paid.vn</c></th><th><c>order</c></th></tr></thead>
+<tbody>
+<tr><td><c>order.*</c></td><td>khớp</td><td>không</td><td>không</td></tr>
+<tr><td><c>order.#</c></td><td>khớp</td><td>khớp</td><td>khớp</td></tr>
+<tr><td><c>*.paid.*</c></td><td>không</td><td>khớp</td><td>không</td></tr>
+</tbody></table></div>
+<ul>
+  <li><strong>Default exchange</strong> (tên rỗng <c>""</c>): mọi queue tự bind với key = tên queue. <c>publish('', 'jobs', msg)</c> nghĩa là "gửi thẳng vào queue jobs".</li>
+  <li>Message không khớp binding nào sẽ bị bỏ. Muốn giữ lại thì cấu hình <strong>alternate exchange</strong>, hoặc publish với cờ <c>mandatory</c> để nhận <c>basic.return</c>.</li>
+  <li>Exchange có thể bind sang exchange khác (exchange-to-exchange) để dựng cây định tuyến.</li>
+</ul>
+</section>
+
+<section class="doc" id="r-queue" data-group="Khái niệm">
+<h2>Ba loại queue</h2>
+<div class="table-wrap"><table>
+<thead><tr><th></th><th>Classic</th><th>Quorum</th><th>Stream</th></tr></thead>
+<tbody>
+<tr><td>Khai báo</td><td>mặc định</td><td><c>x-queue-type: quorum</c></td><td><c>x-queue-type: stream</c></td></tr>
+<tr><td>Sao chép giữa node</td><td>Không</td><td>Có (Raft, cần đa số node)</td><td>Có</td></tr>
+<tr><td>Đọc</td><td>Lấy ra là mất</td><td>Lấy ra là mất</td><td>Không xóa, đọc lại từ offset bất kỳ</td></tr>
+<tr><td>DLX, TTL, priority</td><td>Có</td><td>Có (priority từ 4.3)</td><td>Không, dùng retention</td></tr>
+<tr><td>Hợp với</td><td>Queue tạm, exclusive, tạo/xóa liên tục</td><td>Dữ liệu quan trọng, cần HA (lựa chọn mặc định cho production)</td><td>Thông lượng rất cao, fan-out lớn, replay</td></tr>
+</tbody></table></div>
+<p>Thuộc tính khi khai báo queue: <c>durable</c> (còn sau khi broker khởi động lại), <c>exclusive</c> (chỉ một connection, tự xóa khi connection đóng), <c>auto-delete</c> (xóa khi consumer cuối hủy). Khai báo lại queue với thuộc tính khác sẽ bị lỗi <c>406 PRECONDITION_FAILED</c>.</p>
+<div class="note tip"><span class="nt">Policy hơn x-arguments</span><p>Các tham số đổi được (TTL, max-length, DLX, delivery-limit) nên đặt bằng <strong>policy</strong> trên broker thay vì hard-code <c>x-arguments</c> trong code: đổi policy không cần xóa queue. Riêng <c>x-queue-type</c>, <c>x-max-priority</c>, <c>x-single-active-consumer</c> chỉ đặt được lúc khai báo.</p></div>
+<pre data-lang="bash">
+rabbitmqctl set_policy orders-dlx "^orders\." \
+  '{"dead-letter-exchange":"orders.dlx","delivery-limit":5,"max-length":1000000,"overflow":"reject-publish"}' \
+  --apply-to quorum_queues
+</pre>
+</section>
+
+<section class="doc" id="r-reliability" data-group="Khái niệm">
+<h2>Độ tin cậy: confirm, ack, prefetch</h2>
+<p>Không mất message cần đủ ba thứ: queue <strong>durable</strong> (hoặc quorum) + message <strong>persistent</strong>, <strong>publisher confirm</strong> ở phía gửi, và <strong>manual ack</strong> ở phía nhận.</p>
+<h3>Publisher confirms</h3>
+<p>Bật <c>confirm.select</c> trên channel; broker gửi <c>basic.ack</c> khi mọi queue đích đã nhận message (với quorum queue là khi đa số replica đã ghi). <c>basic.nack</c> từ broker nghĩa là message không được nhận, producer phải gửi lại. Confirm có thể về không theo thứ tự publish.</p>
+<h3>Consumer acknowledgements</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Lệnh</th><th>Ý nghĩa</th></tr></thead>
+<tbody>
+<tr><td><c>basic.ack(tag, multiple)</c></td><td>Xử lý xong, xóa message. <c>multiple=true</c> ack mọi tag ≤ tag này trên channel.</td></tr>
+<tr><td><c>basic.nack(tag, multiple, requeue)</c></td><td>Từ chối. <c>requeue=true</c>: trả lại queue; <c>false</c>: đẩy sang DLX nếu có, không thì bỏ.</td></tr>
+<tr><td><c>basic.reject(tag, requeue)</c></td><td>Như nack nhưng một message.</td></tr>
+</tbody></table></div>
+<ul>
+  <li>Channel/connection đóng khi còn message chưa ack thì các message đó được trả về queue với cờ <c>redelivered</c>. Vì vậy consumer luôn có thể nhận trùng (at-least-once).</li>
+  <li>Delivery tag gắn với channel: ack trên channel khác hoặc ack hai lần sẽ làm channel bị đóng.</li>
+  <li>Auto-ack ("fire and forget") mất message khi consumer chết giữa chừng; chỉ dùng cho dữ liệu không quan trọng.</li>
+</ul>
+<h3>Prefetch (basic.qos)</h3>
+<p><c>prefetch_count</c> giới hạn số message đã giao mà chưa ack cho mỗi consumer. Docs gợi ý <strong>100–300</strong> cho thông lượng tốt; <c>1</c> an toàn nhất nhưng chậm; hàng nghìn dễ làm consumer tràn RAM. Quorum queue giới hạn tối đa 2.000. Với việc xử lý lâu (gọi API ngoài vài giây), đặt nhỏ (10–50) để chia đều giữa các consumer.</p>
+</section>
+
+<section class="doc" id="r-dlx" data-group="Khái niệm">
+<h2>Dead letter, TTL, giới hạn độ dài, retry</h2>
+<p>Message bị "dead-letter" (chuyển sang <strong>DLX</strong>) khi: bị <c>nack/reject</c> với <c>requeue=false</c>, hết TTL, queue vượt độ dài (overflow <c>drop-head</c>), hoặc quorum queue vượt <c>delivery-limit</c>. Hết hạn cả queue (<c>x-expires</c>) thì không dead-letter.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Tham số (x-arg / policy)</th><th>Tác dụng</th></tr></thead>
+<tbody>
+<tr><td><c>x-dead-letter-exchange</c> / <c>dead-letter-exchange</c></td><td>Exchange nhận message chết</td></tr>
+<tr><td><c>x-dead-letter-routing-key</c></td><td>Đổi routing key khi dead-letter (mặc định giữ key gốc)</td></tr>
+<tr><td><c>x-message-ttl</c> / <c>message-ttl</c></td><td>TTL message (ms). Thuộc tính <c>expiration</c> đặt cho từng message; lấy giá trị nhỏ hơn.</td></tr>
+<tr><td><c>x-expires</c></td><td>Xóa queue nếu không được dùng trong N ms</td></tr>
+<tr><td><c>x-max-length</c>, <c>x-max-length-bytes</c>, <c>x-overflow</c></td><td>Giới hạn; overflow = <c>drop-head</c> (mặc định), <c>reject-publish</c>, <c>reject-publish-dlx</c> (classic)</td></tr>
+<tr><td><c>x-delivery-limit</c> (quorum)</td><td>Giao quá N lần thì dead-letter. Mặc định 20.</td></tr>
+<tr><td><c>dead-letter-strategy: at-least-once</c> (policy, quorum)</td><td>Không mất message khi dead-letter (mặc định là at-most-once). Cần <c>overflow: reject-publish</c>.</td></tr>
+<tr><td><c>x-delayed-retry-type/min/max</c> (quorum, 4.3+)</td><td>Trả lại queue sau một khoảng chờ tăng dần: <c>min(min × delivery_count, max)</c></td></tr>
+</tbody></table></div>
+<p>Message chết mang header <c>x-death</c> (lý do: <c>rejected</c>, <c>expired</c>, <c>maxlen</c>, <c>delivery_limit</c>; số lần; queue gốc), rất hữu ích để debug và đếm số lần retry.</p>
+</section>
+
+<section class="doc" id="r-other" data-group="Khái niệm">
+<h2>Single active consumer, priority, streams</h2>
+<ul>
+  <li><strong>Single active consumer</strong> (<c>x-single-active-consumer: true</c>): nhiều consumer đăng ký nhưng chỉ một nhận message, các consumer khác chờ thay thế khi nó chết. Giữ được thứ tự xử lý mà vẫn có dự phòng.</li>
+  <li><strong>Priority</strong>: classic cần <c>x-max-priority</c> (docs khuyên 2–4 mức); quorum từ 4.3 có sẵn 32 mức (0–31), message không đặt priority được tính là 4. Priority nghiêm ngặt có thể làm message ưu tiên thấp bị "đói".</li>
+  <li><strong>Stream</strong>: khai báo <c>x-queue-type: stream</c>, retention bằng <c>x-max-age</c> (ví dụ <c>7D</c>) và <c>x-max-length-bytes</c>; consumer chọn vị trí đọc bằng <c>x-stream-offset</c> (<c>first</c>, <c>last</c>, <c>next</c>, số offset, timestamp). Super stream chia stream thành nhiều partition giống Kafka.</li>
+</ul>
+</section>
+
+<section class="doc" id="r-nest" data-group="Sử dụng">
+<h2>Dùng trong NestJS</h2>
+<h3>Cách 1: @golevelup/nestjs-rabbitmq <span class="badge b-pkg">lib</span></h3>
+<p>Linh hoạt nhất cho exchange/routing key kiểu topic; đây là thư viện service <c>api/</c> của bạn đang dùng.</p>
+<pre data-lang="ts" data-file="src/rabbit/rabbit.module.ts">
+import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
+
+@Module({
+  imports: [
+    RabbitMQModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (c: ConfigService) => ({
+        uri: c.getOrThrow('AMQP_URL'),
+        exchanges: [
+          { name: 'fraud', type: 'topic' },
+          { name: 'fraud.dlx', type: 'topic' },
+        ],
+        channels: { main: { prefetchCount: 50, default: true } },
+        connectionInitOptions: { wait: false },   // không chặn khởi động khi broker chưa sẵn sàng
+        enableControllerDiscovery: true,
+      }),
+    }),
+  ],
+  providers: [OrderConsumer, OrderPublisher],
+})
+export class RabbitModule {}
+</pre>
+<pre data-lang="ts">
+import { AmqpConnection, Nack, RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
+import { ConsumeMessage } from 'amqplib';
+
+@Injectable()
+export class OrderConsumer {
+  private readonly logger = new Logger(OrderConsumer.name);
+
+  @RabbitSubscribe({
+    exchange: 'fraud',
+    routingKey: ['order.created', 'order.updated'],
+    queue: 'risk.orders',
+    queueOptions: {
+      durable: true,
+      arguments: { 'x-queue-type': 'quorum', 'x-dead-letter-exchange': 'fraud.dlx', 'x-delivery-limit': 5 },
+    },
+  })
+  async handle(msg: OrderEvent, raw: ConsumeMessage) {
+    try {
+      await this.risk.score(msg);
+      // trả về undefined → thư viện ack
+    } catch (e) {
+      this.logger.error(`order ${msg.orderId} failed`, e as Error);
+      return new Nack(false);          // không requeue → sang DLX
+    }
+  }
+}
+
+@Injectable()
+export class OrderPublisher {
+  constructor(private readonly amqp: AmqpConnection) {}
+
+  created(order: OrderEvent) {
+    return this.amqp.publish('fraud', 'order.created', order, {
+      persistent: true,
+      messageId: `order.created:${order.orderId}`,   // để consumer chống trùng
+      contentType: 'application/json',
+    });
+  }
+}
+</pre>
+<h3>Cách 2: @nestjs/microservices (Transport.RMQ)</h3>
+<p>Có sẵn trong Nest, cấu hình đơn giản nhưng mỗi microservice gắn với một queue và ít kiểm soát exchange hơn. Ví dụ đầy đủ ở tab NestJS, mục <a href="#microservices">Microservices</a>.</p>
+</section>
+
+<section class="doc" id="r-java" data-group="Sử dụng">
+<h2>Dùng trong Java</h2>
+<h3>Java client chính thức (com.rabbitmq:amqp-client) <span class="badge b-pkg">lib</span></h3>
+<pre data-lang="java">
+ConnectionFactory f = new ConnectionFactory();
+f.setUri(System.getenv("AMQP_URL"));
+f.setAutomaticRecoveryEnabled(true);                  // tự kết nối lại khi mất mạng
+
+Connection conn = f.newConnection("risk-service");    // dùng lâu dài, không mở/đóng liên tục
+Channel ch = conn.createChannel();                    // channel KHÔNG thread-safe: mỗi thread một channel
+
+ch.exchangeDeclare("fraud", BuiltinExchangeType.TOPIC, true);
+ch.queueDeclare("risk.orders", true, false, false,
+    Map.of("x-queue-type", "quorum", "x-dead-letter-exchange", "fraud.dlx"));
+ch.queueBind("risk.orders", "fraud", "order.*");
+
+// consumer: manual ack
+ch.basicQos(50);
+DeliverCallback onMessage = (tag, delivery) -> {
+    long deliveryTag = delivery.getEnvelope().getDeliveryTag();
+    try {
+        handle(new String(delivery.getBody(), StandardCharsets.UTF_8));
+        ch.basicAck(deliveryTag, false);
+    } catch (Exception e) {
+        ch.basicNack(deliveryTag, false, false);      // sang DLX
+    }
+};
+ch.basicConsume("risk.orders", false, onMessage, consumerTag -> { });
+</pre>
+<pre data-lang="java">
+// publisher confirms
+Channel pub = conn.createChannel();
+pub.confirmSelect();
+AMQP.BasicProperties props = new AMQP.BasicProperties.Builder()
+    .contentType("application/json")
+    .deliveryMode(2)                                  // persistent
+    .messageId("order.created:" + orderId)
+    .build();
+pub.basicPublish("fraud", "order.created", props, json.getBytes(StandardCharsets.UTF_8));
+pub.waitForConfirmsOrDie(5_000);                      // đơn giản; thông lượng cao thì dùng addConfirmListener
+</pre>
+<h3>Spring AMQP</h3>
+<pre data-lang="java">
+@Configuration
+class RabbitConfig {
+    @Bean TopicExchange fraud() { return new TopicExchange("fraud"); }
+    @Bean Queue riskOrders() {
+        return QueueBuilder.durable("risk.orders").quorum().deadLetterExchange("fraud.dlx").deliveryLimit(5).build();
+    }
+    @Bean Binding bind(Queue riskOrders, TopicExchange fraud) {
+        return BindingBuilder.bind(riskOrders).to(fraud).with("order.*");
+    }
+    @Bean MessageConverter json() { return new Jackson2JsonMessageConverter(); }
+}
+
+@Component
+class OrderListener {
+    @RabbitListener(queues = "risk.orders", concurrency = "4-8")
+    void on(OrderEvent event) { risk.score(event); }   // ném exception → nack (cấu hình default-requeue-rejected=false)
+}
+
+rabbitTemplate.convertAndSend("fraud", "order.created", event);
+</pre>
+</section>
+
+<section class="doc" id="r-p-work" data-group="Patterns">
+<h2>Work queue và Publish/Subscribe</h2>
+<h3>Work queue (competing consumers)</h3>
+<p>Nhiều consumer cùng đọc một queue: mỗi message chỉ một consumer nhận, tải tự chia đều. Muốn tăng tốc thì thêm consumer. Đặt prefetch nhỏ để consumer chậm không ôm nhiều việc.</p>
+<h3>Publish/Subscribe</h3>
+<p>Mỗi service có <strong>queue riêng</strong> bind vào cùng một exchange; một sự kiện được copy tới mọi service quan tâm, và trong mỗi service lại là work queue.</p>
+<pre data-lang="text">
+                           ┌── binding order.* ──► queue risk.orders      ► risk-service ×3
+order.created ► [fraud] ───┼── binding order.# ──► queue analytics.orders ► analytics ×1
+   (topic)                 └── binding *.created ► queue audit.created    ► audit ×1
+</pre>
+<p>Đặt tên queue theo <c>&lt;service&gt;.&lt;mục đích&gt;</c> và routing key theo <c>&lt;thực thể&gt;.&lt;sự kiện&gt;</c> giúp đọc topology dễ dàng.</p>
+</section>
+
+<section class="doc" id="r-p-retry" data-group="Patterns">
+<h2>Retry có độ trễ và parking lot</h2>
+<p>Lỗi tạm thời (API ngoài 503) cần thử lại sau một lúc; lỗi vĩnh viễn (dữ liệu sai) cần đưa ra chỗ riêng để người xem. Không bao giờ <c>nack(requeue=true)</c> ngay lập tức: message sẽ quay vòng liên tục và làm nghẽn queue.</p>
+<h3>Cách 1: quorum queue delayed retry (4.3+)</h3>
+<pre data-lang="bash">
+rabbitmqctl set_policy risk-retry "^risk\." \
+  '{"delayed-retry-type":"failed","delayed-retry-min":1000,"delayed-retry-max":60000,"delivery-limit":6,"dead-letter-exchange":"fraud.parking"}' \
+  --apply-to quorum_queues
+# consumer chỉ cần nack(requeue=true): broker tự giữ lại 1s, 2s, 3s… tối đa 60s; quá 6 lần → parking
+</pre>
+<h3>Cách 2: retry queue có TTL (chạy được mọi phiên bản)</h3>
+<pre data-lang="text">
+risk.orders ──nack──► [fraud.retry] ─► risk.orders.retry.10s (x-message-ttl=10000,
+     ▲                                     x-dead-letter-exchange=fraud,
+     └──────────── hết TTL quay về ────────  x-dead-letter-routing-key=order.created)
+consumer đọc x-death count ≥ 5 ──► publish sang risk.orders.parking rồi ack
+</pre>
+<pre data-lang="ts">
+const deaths = (raw.properties.headers?.['x-death'] as Array<{ count: number }> | undefined) ?? [];
+const attempts = deaths.reduce((n, d) => n + d.count, 0);
+
+if (isPermanent(err) || attempts >= 5) {
+  await this.amqp.publish('fraud.parking', raw.fields.routingKey, msg, { headers: { error: String(err) } });
+  return;                                  // ack bản gốc
+}
+return new Nack(false);                    // sang retry queue, quay lại sau TTL
+</pre>
+</section>
+
+<section class="doc" id="r-p-idem" data-group="Patterns">
+<h2>Idempotent consumer và thứ tự</h2>
+<p>RabbitMQ giao <strong>at-least-once</strong>: consumer phải chịu được message trùng. Gắn <c>messageId</c> ổn định ở producer, lưu lại id đã xử lý ở consumer.</p>
+<pre data-lang="ts">
+async handle(msg: OrderEvent, raw: ConsumeMessage) {
+  const id = raw.properties.messageId;
+  const first = await this.redis.set(`processed:${id}`, '1', 'EX', 7 * 86_400, 'NX');
+  if (!first) return;                       // đã xử lý, ack luôn
+  try {
+    await this.risk.score(msg);
+  } catch (e) {
+    await this.redis.del(`processed:${id}`); // cho phép thử lại
+    return new Nack(false);
+  }
+}
+</pre>
+<p>Cách bền hơn: ghi id vào DB cùng transaction với kết quả (unique index), hoặc thiết kế thao tác tự nhiên idempotent (upsert theo khóa nghiệp vụ).</p>
+<h3>Giữ thứ tự</h3>
+<ul>
+  <li>Một queue + một consumer giữ thứ tự; nhiều consumer hoặc requeue làm mất thứ tự.</li>
+  <li>Cần thứ tự theo từng khóa (mỗi shop) mà vẫn song song: dùng <strong>consistent hash exchange</strong> (plugin) chia theo khóa sang N queue, mỗi queue bật <strong>single active consumer</strong>; hoặc super stream.</li>
+</ul>
+</section>
+
+<section class="doc" id="r-p-rpc" data-group="Patterns">
+<h2>RPC qua RabbitMQ</h2>
+<p>Client gửi request kèm <c>replyTo</c> (queue trả lời) và <c>correlationId</c>; server xử lý rồi publish kết quả vào <c>replyTo</c>. Dùng khi cần request/response qua broker (cân bằng tải tự nhiên, không cần service discovery). Phải luôn có timeout.</p>
+<pre data-lang="ts">
+// @golevelup: phía server
+@RabbitRPC({ exchange: 'fraud', routingKey: 'risk.score', queue: 'risk.rpc' })
+score(req: { orderId: string }) {
+  return this.risk.score(req.orderId);                 // giá trị trả về được gửi về replyTo
+}
+
+// phía client
+const res = await this.amqp.request<{ score: number }>({
+  exchange: 'fraud', routingKey: 'risk.score', payload: { orderId }, timeout: 5_000,
+});
+</pre>
+<p>Với Spring: <c>rabbitTemplate.convertSendAndReceive(...)</c>. Nếu hai service đều online và cần gọi đồng bộ, HTTP/gRPC thường đơn giản hơn RPC qua broker.</p>
+</section>
+
+<section class="doc" id="r-checklist" data-group="Tra cứu">
+<h2>Checklist production</h2>
+<ul>
+  <li>Cụm số node lẻ (3, 5); <c>cluster_partition_handling = pause_minority</c>.</li>
+  <li>Dùng quorum queue cho dữ liệu quan trọng; chỉ khai báo queue durable hoặc exclusive.</li>
+  <li>Bật publisher confirm + manual ack; message persistent.</li>
+  <li>Prefetch khoảng 100–300 (nhỏ hơn cho việc xử lý lâu).</li>
+  <li>Mọi queue nghiệp vụ có DLX và giới hạn độ dài; cấu hình bằng policy.</li>
+  <li>Connection dùng lâu dài, tách connection publish và consume; mỗi thread một channel; bật tự kết nối lại.</li>
+  <li>Xóa user <c>guest</c>, mỗi ứng dụng một user, mỗi môi trường một vhost; bật TLS.</li>
+  <li><c>vm_memory_high_watermark.relative</c> 0.4–0.7; <c>disk_free_limit</c> đặt cỡ bằng mức watermark bộ nhớ (mặc định 50MB chỉ hợp dev).</li>
+  <li>Giám sát độ dài queue, số message chưa ack, tốc độ publish/deliver/ack (Prometheus plugin).</li>
+</ul>
+<h3>Nguồn</h3>
+<ul>
+  <li><a href="https://www.rabbitmq.com/docs" target="_blank" rel="noopener">rabbitmq.com/docs</a> · <a href="https://www.rabbitmq.com/tutorials" target="_blank" rel="noopener">7 tutorial chính thức</a></li>
+  <li><a href="https://www.rabbitmq.com/docs/quorum-queues" target="_blank" rel="noopener">Quorum queues</a> · <a href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">Dead letter</a> · <a href="https://www.rabbitmq.com/docs/production-checklist" target="_blank" rel="noopener">Production checklist</a></li>
+  <li><a href="https://github.com/golevelup/nestjs/tree/master/packages/rabbitmq" target="_blank" rel="noopener">@golevelup/nestjs-rabbitmq</a> · <a href="https://docs.spring.io/spring-amqp/reference/" target="_blank" rel="noopener">Spring AMQP</a></li>
+</ul>
+</section>

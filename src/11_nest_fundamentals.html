@@ -1,0 +1,360 @@
+<section class="doc" id="custom-providers" data-group="Chuyên sâu DI">
+<h2>Custom providers</h2>
+<p>Viết <c>providers: [CatsService]</c> là cách viết tắt của <c>{'{'} provide: CatsService, useClass: CatsService {'}'}</c>. Dạng đầy đủ cho phép kiểm soát token và cách tạo instance. Có bốn kiểu:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Kiểu</th><th>Dùng khi</th></tr></thead>
+<tbody>
+<tr><td><c>useValue</c></td><td>Hằng số, object cấu hình, mock trong test.</td></tr>
+<tr><td><c>useClass</c></td><td>Chọn class cài đặt lúc runtime (theo môi trường), hoặc bind interface → implementation.</td></tr>
+<tr><td><c>useFactory</c></td><td>Instance cần tính toán, cần provider khác, hoặc cần <c>await</c> (kết nối DB, SDK).</td></tr>
+<tr><td><c>useExisting</c></td><td>Tạo alias: hai token trỏ cùng một instance.</td></tr>
+</tbody></table></div>
+<pre data-lang="ts">
+export const REDIS = Symbol('REDIS');
+export const APP_NAME = 'APP_NAME';
+
+@Module({
+  providers: [
+    // 1. useValue
+    { provide: APP_NAME, useValue: 'fraud-api' },
+
+    // 2. useClass: chọn implementation theo môi trường
+    {
+      provide: MailSender,                               // abstract class làm token
+      useClass: process.env.NODE_ENV === 'test' ? FakeMailSender : SesMailSender,
+    },
+
+    // 3. useFactory: có inject, có async
+    {
+      provide: REDIS,
+      inject: [ConfigService, { token: 'REDIS_OPTIONS', optional: true }],
+      useFactory: async (config: ConfigService, extra?: RedisOptions) => {
+        const client = new Redis(config.getOrThrow('REDIS_URL'), extra);
+        await client.ping();                             // Nest đợi Promise xong mới tạo provider phụ thuộc
+        return client;
+      },
+    },
+
+    // 4. useExisting: alias
+    { provide: 'LegacyLogger', useExisting: AppLogger },
+  ],
+  exports: [REDIS, MailSender],
+})
+export class InfraModule {}
+
+// inject token không phải class phải dùng @Inject
+constructor(@Inject(REDIS) private readonly redis: Redis) {}
+</pre>
+<div class="note tip"><span class="nt">Async provider</span><p>Factory trả về <c>Promise</c> thì Nest đợi resolve trước khi khởi tạo bất kỳ class nào phụ thuộc vào nó. Đây là cách chuẩn để "ứng dụng chỉ khởi động khi đã kết nối xong DB". Đặt biến môi trường <c>NEST_DEBUG=true</c> để xem log quá trình resolve DI.</p></div>
+</section>
+
+<section class="doc" id="dynamic-modules" data-group="Chuyên sâu DI">
+<h2>Dynamic modules</h2>
+<p>Module tĩnh luôn giống nhau ở mọi nơi import. Dynamic module nhận tham số và trả về module được cấu hình riêng, ví dụ <c>ConfigModule.forRoot({'{'} isGlobal: true {'}'})</c>. Static method trả về object <c>DynamicModule</c>, trong đó <c>module</c> là bắt buộc, các khóa khác bổ sung vào metadata của <c>@Module()</c>.</p>
+<h3>Quy ước đặt tên</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Method</th><th>Ý nghĩa</th><th>Ví dụ</th></tr></thead>
+<tbody>
+<tr><td><c>forRoot</c> / <c>forRootAsync</c></td><td>Cấu hình một lần ở root, dùng chung toàn app</td><td><c>MongooseModule.forRoot(uri)</c></td></tr>
+<tr><td><c>register</c> / <c>registerAsync</c></td><td>Mỗi nơi import có cấu hình riêng</td><td><c>HttpModule.register({'{'} timeout {'}'})</c></td></tr>
+<tr><td><c>forFeature</c></td><td>Dùng lại kết nối của forRoot, thêm phần riêng cho module</td><td><c>MongooseModule.forFeature([...])</c></td></tr>
+</tbody></table></div>
+
+<h3>Viết tay</h3>
+<pre data-lang="ts">
+export interface ShopifyOptions { apiKey: string; apiSecret: string; apiVersion: string }
+export const SHOPIFY_OPTIONS = Symbol('SHOPIFY_OPTIONS');
+
+@Module({})
+export class ShopifyModule {
+  static forRoot(options: ShopifyOptions): DynamicModule {
+    return {
+      module: ShopifyModule,
+      global: true,
+      providers: [{ provide: SHOPIFY_OPTIONS, useValue: options }, ShopifyClient],
+      exports: [ShopifyClient],
+    };
+  }
+}
+</pre>
+
+<h3>Dùng ConfigurableModuleBuilder</h3>
+<p>Viết tay cả <c>forRoot</c> lẫn <c>forRootAsync</c> (hỗ trợ <c>useFactory</c>, <c>useClass</c>, <c>useExisting</c>, <c>inject</c>, <c>imports</c>) khá dài. <c>ConfigurableModuleBuilder</c> sinh sẵn toàn bộ.</p>
+<pre data-lang="ts" data-file="shopify.module-definition.ts">
+import { ConfigurableModuleBuilder } from '@nestjs/common';
+
+export const {
+  ConfigurableModuleClass,
+  MODULE_OPTIONS_TOKEN,
+  OPTIONS_TYPE,
+  ASYNC_OPTIONS_TYPE,
+} = new ConfigurableModuleBuilder<ShopifyOptions>()
+  .setClassMethodName('forRoot')               // sinh forRoot / forRootAsync (mặc định là register)
+  .setFactoryMethodName('createShopifyOptions') // tên method khi dùng useClass
+  .setExtras({ isGlobal: false }, (def, extras) => ({ ...def, global: extras.isGlobal }))
+  .build();
+</pre>
+<pre data-lang="ts" data-file="shopify.module.ts">
+@Module({ providers: [ShopifyClient], exports: [ShopifyClient] })
+export class ShopifyModule extends ConfigurableModuleClass {}
+
+@Injectable()
+export class ShopifyClient {
+  constructor(@Inject(MODULE_OPTIONS_TOKEN) private readonly opts: ShopifyOptions) {}
+}
+
+// app.module.ts
+ShopifyModule.forRootAsync({
+  isGlobal: true,
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (c: ConfigService) => ({
+    apiKey: c.getOrThrow('SHOPIFY_API_KEY'),
+    apiSecret: c.getOrThrow('SHOPIFY_API_SECRET'),
+    apiVersion: '2025-10',
+  }),
+});
+</pre>
+</section>
+
+<section class="doc" id="scopes" data-group="Chuyên sâu DI">
+<h2>Injection scopes</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Scope</th><th>Vòng đời instance</th><th>Dùng khi</th></tr></thead>
+<tbody>
+<tr><td><c>Scope.DEFAULT</c></td><td>Một instance cho cả app (singleton)</td><td>Gần như mọi trường hợp. Nhanh nhất.</td></tr>
+<tr><td><c>Scope.REQUEST</c></td><td>Tạo mới cho mỗi request, bị hủy sau request</td><td>Cần dữ liệu riêng từng request (tenant, user) mà không truyền tham số.</td></tr>
+<tr><td><c>Scope.TRANSIENT</c></td><td>Mỗi nơi inject nhận một instance riêng</td><td>Logger có <c>setContext()</c> riêng cho từng class.</td></tr>
+</tbody></table></div>
+<pre data-lang="ts">
+import { Inject, Injectable, Scope } from '@nestjs/common';
+import { REQUEST } from '@nestjs/core';
+
+@Injectable({ scope: Scope.REQUEST })
+export class TenantContext {
+  constructor(@Inject(REQUEST) private readonly req: Request) {}
+  get shopId() { return this.req.headers['x-shop-id'] as string; }
+}
+</pre>
+<div class="note warn"><span class="nt">Scope "lan truyền" lên trên</span><p>Nếu <c>OrdersService</c> inject <c>TenantContext</c> (REQUEST), thì <c>OrdersService</c> và controller dùng nó cũng thành REQUEST-scoped, tức là tạo mới mỗi request. Request scope cũng không chạy lifecycle hook (<c>onModuleInit</c>…). Với dữ liệu theo request, nên dùng AsyncLocalStorage / <c>nestjs-cls</c> (xem <a href="#p-cls">pattern Request context</a>) để giữ mọi thứ là singleton.</p></div>
+<p><strong>Durable providers</strong> (dành cho multi-tenant): đánh dấu <c>@Injectable({'{'} scope: Scope.REQUEST, durable: true {'}'})</c> và đăng ký một <c>ContextIdStrategy</c> qua <c>ContextIdFactory.apply()</c>. Nest khi đó tạo một cây DI cho mỗi tenant thay vì mỗi request. Docs lưu ý cách này chỉ hợp với số tenant nhỏ.</p>
+</section>
+
+<section class="doc" id="circular" data-group="Chuyên sâu DI">
+<h2>Circular dependency, ModuleRef và lazy loading</h2>
+<h3>Phụ thuộc vòng</h3>
+<p>Khi A cần B và B cần A, TypeScript import ra <c>undefined</c> tại thời điểm decorator chạy. Giải pháp tạm là <c>forwardRef</c> ở <strong>cả hai phía</strong>:</p>
+<pre data-lang="ts">
+// provider
+@Injectable()
+export class OrdersService {
+  constructor(@Inject(forwardRef(() => CustomersService)) private customers: CustomersService) {}
+}
+@Injectable()
+export class CustomersService {
+  constructor(@Inject(forwardRef(() => OrdersService)) private orders: OrdersService) {}
+}
+
+// module
+@Module({ imports: [forwardRef(() => CustomersModule)] })
+export class OrdersModule {}
+</pre>
+<div class="note tip"><span class="nt">Nên làm</span><p>Vòng phụ thuộc thường là dấu hiệu thiết kế sai. Cách xử lý triệt để: tách phần dùng chung ra module thứ ba, hoặc đổi một chiều gọi thành event (A phát event, B lắng nghe). Tránh file barrel <c>index.ts</c> import qua lại trong cùng thư mục, đây là nguồn circular import phổ biến.</p></div>
+
+<h3>ModuleRef</h3>
+<p><c>ModuleRef</c> cho phép lấy provider theo token lúc runtime, hữu ích khi token chỉ biết lúc chạy (strategy theo tên).</p>
+<pre data-lang="ts">
+@Injectable()
+export class ExportService {
+  constructor(private readonly moduleRef: ModuleRef) {}
+
+  async run(format: 'csv' | 'xlsx') {
+    const exporter = this.moduleRef.get(format === 'csv' ? CsvExporter : XlsxExporter, { strict: false });
+    // provider REQUEST/TRANSIENT phải dùng resolve() và nên truyền contextId
+    const scoped = await this.moduleRef.resolve(ReportBuilder, ContextIdFactory.create());
+    // tạo instance của class chưa đăng ký nhưng vẫn được inject
+    const tmp = await this.moduleRef.create(TempWorker);
+  }
+}
+</pre>
+
+<h3>Lazy-loading module</h3>
+<p>Mặc định mọi module nạp lúc khởi động. Với serverless hoặc worker cần cold start nhanh, nạp module khi cần bằng <c>LazyModuleLoader</c>:</p>
+<pre data-lang="ts">
+@Injectable()
+export class ReportsService {
+  constructor(private readonly lazy: LazyModuleLoader) {}
+
+  async generate() {
+    const { PdfModule } = await import('./pdf/pdf.module');
+    const ref = await this.lazy.load(() => PdfModule);   // cache sau lần đầu
+    return ref.get(PdfService).render();
+  }
+}
+</pre>
+<p>Hạn chế: module lazy không chứa được controller/gateway/resolver, không chạy lifecycle hook và không global được.</p>
+</section>
+
+<section class="doc" id="execution-context" data-group="Chuyên sâu DI">
+<h2>Execution context và Reflector</h2>
+<p>Guard, interceptor, filter phải chạy được cho HTTP, microservice, WebSocket và GraphQL. Nest đưa cho chúng một lớp trừu tượng:</p>
+<ul>
+  <li><c>ArgumentsHost</c>: <c>getType()</c> trả về <c>'http' | 'rpc' | 'ws'</c> (hoặc <c>'graphql'</c>); <c>switchToHttp()</c>, <c>switchToRpc()</c>, <c>switchToWs()</c> lấy đối tượng đúng loại.</li>
+  <li><c>ExecutionContext</c> kế thừa <c>ArgumentsHost</c>, thêm <c>getClass()</c> (controller) và <c>getHandler()</c> (method) để đọc metadata.</li>
+</ul>
+<pre data-lang="ts">
+canActivate(ctx: ExecutionContext) {
+  switch (ctx.getType<'http' | 'rpc' | 'ws' | 'graphql'>()) {
+    case 'http':    return this.checkHttp(ctx.switchToHttp().getRequest());
+    case 'rpc':     return this.checkRpc(ctx.switchToRpc().getData());
+    case 'ws':      return this.checkWs(ctx.switchToWs().getClient());
+    case 'graphql': return this.checkHttp(GqlExecutionContext.create(ctx).getContext().req);
+  }
+}
+</pre>
+<h3>Đọc metadata với Reflector</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Method</th><th>Hành vi</th></tr></thead>
+<tbody>
+<tr><td><c>get(key, target)</c></td><td>Đọc metadata trên một target (handler hoặc class).</td></tr>
+<tr><td><c>getAllAndOverride(key, [handler, class])</c></td><td>Lấy giá trị đầu tiên khác undefined: method ghi đè class.</td></tr>
+<tr><td><c>getAllAndMerge(key, [handler, class])</c></td><td>Gộp mảng/object từ cả method và class.</td></tr>
+</tbody></table></div>
+<pre data-lang="ts">
+@Roles(['staff'])
+@Controller('orders')
+export class OrdersController {
+  @Roles(['admin'])
+  @Delete(':id')
+  remove() {}
+}
+// getAllAndOverride(Roles, ...) → ['admin']
+// getAllAndMerge(Roles, ...)    → ['admin', 'staff']
+</pre>
+</section>
+
+<section class="doc" id="lifecycle" data-group="Chuyên sâu DI">
+<h2>Lifecycle events</h2>
+<p>Provider, controller và module có thể implement các hook sau:</p>
+<ol class="pipeline">
+  <li><b>onModuleInit()</b><span>Ngay sau khi phụ thuộc của module đã resolve. Hợp để kết nối, warm cache.</span></li>
+  <li><b>onApplicationBootstrap()</b><span>Khi mọi module đã init, trước khi bắt đầu nhận kết nối.</span></li>
+  <li class="k-core"><b>app.listen()</b><span>Ứng dụng phục vụ request.</span></li>
+  <li><b>onModuleDestroy()</b><span>Khi nhận tín hiệu tắt (SIGTERM) hoặc gọi <c>app.close()</c>.</span></li>
+  <li><b>beforeApplicationShutdown(signal)</b><span>Sau khi mọi <c>onModuleDestroy</c> hoàn tất, trước khi đóng kết nối HTTP.</span></li>
+  <li><b>onApplicationShutdown(signal)</b><span>Sau khi kết nối đã đóng, bước cuối cùng.</span></li>
+</ol>
+<pre data-lang="ts">
+@Injectable()
+export class RabbitConsumer implements OnModuleInit, OnModuleDestroy, OnApplicationShutdown {
+  async onModuleInit() {
+    await this.channel.consume('orders', this.handle);
+  }
+  async onModuleDestroy() {
+    await this.channel.cancel(this.consumerTag);   // ngừng nhận message mới
+  }
+  async onApplicationShutdown(signal?: string) {
+    await this.connection.close();
+  }
+}
+
+// main.ts: bắt buộc nếu muốn hook shutdown chạy khi nhận SIGTERM
+app.enableShutdownHooks();
+</pre>
+<ul>
+  <li>Hook được <c>await</c> theo từng module; module sâu nhất (xa root nhất) chạy trước, shutdown chạy ngược lại.</li>
+  <li>Không chạy với provider REQUEST-scoped và module lazy-load.</li>
+  <li><c>app.close()</c> không tự thoát process; timer còn chạy sẽ giữ process sống.</li>
+</ul>
+</section>
+
+<section class="doc" id="discovery" data-group="Chuyên sâu DI">
+<h2>Discovery service</h2>
+<p><c>DiscoveryService</c> (từ <c>@nestjs/core</c>) cho phép quét mọi provider/controller lúc khởi động và lọc theo metadata. Đây là nền tảng để tự viết cơ chế kiểu <c>@OnEvent</c>, <c>@Cron</c>, hay một "plugin registry".</p>
+<pre data-lang="ts">
+import { DiscoveryModule, DiscoveryService } from '@nestjs/core';
+
+// 1. decorator đánh dấu class
+export const RuleEvaluator = DiscoveryService.createDecorator<{ type: string }>();
+
+@RuleEvaluator({ type: 'ip' })
+@Injectable()
+export class IpRuleEvaluator implements Evaluator { evaluate(ctx: Ctx) { /* ... */ } }
+
+// 2. registry quét lúc khởi động
+@Injectable()
+export class EvaluatorRegistry implements OnModuleInit {
+  private readonly map = new Map<string, Evaluator>();
+  constructor(private readonly discovery: DiscoveryService) {}
+
+  onModuleInit() {
+    for (const wrapper of this.discovery.getProviders({ metadataKey: RuleEvaluator.KEY })) {
+      const meta = this.discovery.getMetadataByDecorator(RuleEvaluator, wrapper);
+      if (meta && wrapper.instance) this.map.set(meta.type, wrapper.instance);
+    }
+  }
+  get(type: string) { return this.map.get(type); }
+}
+
+@Module({ imports: [DiscoveryModule], providers: [EvaluatorRegistry, IpRuleEvaluator] })
+export class RulesModule {}
+</pre>
+</section>
+
+<section class="doc" id="testing" data-group="Chuyên sâu DI">
+<h2>Testing</h2>
+<p><c>@nestjs/testing</c> dựng một module DI thu nhỏ để test. Nest 11 dùng Jest mặc định; Nest 12 dùng Vitest cho project ESM.</p>
+<h3>Unit test service, mock phụ thuộc</h3>
+<pre data-lang="ts" data-file="cats.service.spec.ts">
+import { Test } from '@nestjs/testing';
+import { getModelToken } from '@nestjs/mongoose';
+
+describe('CatsService', () => {
+  let service: CatsService;
+  const catModel = { findById: jest.fn() };
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        CatsService,
+        { provide: getModelToken(Cat.name), useValue: catModel },
+      ],
+    }).compile();
+
+    service = moduleRef.get(CatsService);
+  });
+
+  it('ném NotFound khi không có cat', async () => {
+    catModel.findById.mockReturnValue({ lean: () => Promise.resolve(null) });
+    await expect(service.findOne('x')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+</pre>
+<h3>Ghi đè và auto-mock</h3>
+<pre data-lang="ts">
+const moduleRef = await Test.createTestingModule({ imports: [OrdersModule] })
+  .overrideProvider(PaymentGateway).useClass(FakeGateway)
+  .overrideGuard(AuthGuard).useValue({ canActivate: () => true })
+  .overrideModule(RabbitModule).useModule(FakeRabbitModule)
+  .useMocker((token) => (token === MailSender ? { send: jest.fn() } : undefined))
+  .compile();
+</pre>
+<h3>E2E test với supertest</h3>
+<pre data-lang="ts" data-file="test/cats.e2e-spec.ts">
+describe('Cats (e2e)', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));  // phải lặp lại cấu hình của main.ts
+    await app.init();
+  });
+
+  it('GET /cats', () => request(app.getHttpServer()).get('/cats').expect(200));
+
+  afterAll(() => app.close());
+});
+</pre>
+<div class="note warn"><span class="nt">Ghi đè guard global</span><p>Guard đăng ký bằng <c>APP_GUARD</c> + <c>useClass</c> không ghi đè được trực tiếp. Đổi thành <c>{'{'} provide: APP_GUARD, useExisting: JwtAuthGuard {'}'}</c> và thêm <c>JwtAuthGuard</c> vào providers, sau đó <c>overrideProvider(JwtAuthGuard)</c>.</p></div>
+</section>

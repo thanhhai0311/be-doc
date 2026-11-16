@@ -1,0 +1,581 @@
+<section class="doc" id="j-patterns" data-group="Design patterns">
+<h2>Bản đồ design pattern</h2>
+<p>23 pattern của "Gang of Four" chia làm ba nhóm. Bảng dưới tóm tắt mục đích từng pattern và chỗ chúng xuất hiện ngay trong thư viện chuẩn Java. Các mục sau đi sâu vào những pattern hay dùng nhất, viết theo Java hiện đại.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Pattern</th><th>Mục đích</th><th>Ví dụ trong JDK</th></tr></thead>
+<tbody>
+<tr><td colspan="3"><strong>Khởi tạo (Creational)</strong></td></tr>
+<tr><td><a href="#j-p-factory">Factory Method</a></td><td>Method tạo object, lớp con hoặc tham số quyết định kiểu cụ thể</td><td><c>Calendar.getInstance()</c>, <c>NumberFormat.getInstance()</c>, <c>Charset.forName()</c>, <c>EnumSet.of()</c></td></tr>
+<tr><td>Abstract Factory</td><td>Tạo cả họ object liên quan mà không nêu tên class cụ thể</td><td><c>DocumentBuilderFactory</c></td></tr>
+<tr><td><a href="#j-p-builder">Builder</a></td><td>Dựng object phức tạp từng bước</td><td><c>StringBuilder</c>, <c>HttpRequest.newBuilder()</c>, <c>Thread.ofVirtual()</c></td></tr>
+<tr><td>Prototype</td><td>Tạo object mới bằng cách sao chép</td><td><c>Object.clone()</c> (nên tránh, dùng copy constructor)</td></tr>
+<tr><td><a href="#j-p-singleton">Singleton</a></td><td>Đúng một instance, truy cập toàn cục</td><td><c>Runtime.getRuntime()</c></td></tr>
+<tr><td colspan="3"><strong>Cấu trúc (Structural)</strong></td></tr>
+<tr><td><a href="#j-p-adapter">Adapter</a></td><td>Cho hai interface không tương thích làm việc với nhau</td><td><c>InputStreamReader</c>, <c>Arrays.asList()</c></td></tr>
+<tr><td>Bridge</td><td>Tách abstraction khỏi implementation để thay đổi độc lập</td><td>JDBC <c>DriverManager</c> + driver</td></tr>
+<tr><td>Composite</td><td>Cấu trúc cây, xử lý lá và nhánh như nhau</td><td>Component/Container trong AWT/Swing</td></tr>
+<tr><td><a href="#j-p-decorator">Decorator</a></td><td>Bọc object để thêm hành vi, giữ nguyên interface</td><td><c>BufferedInputStream</c>, <c>Collections.unmodifiableList()</c></td></tr>
+<tr><td>Facade</td><td>Một interface đơn giản che hệ thống con phức tạp</td><td><c>HttpClient</c> che socket, TLS, HTTP/2</td></tr>
+<tr><td>Flyweight</td><td>Chia sẻ object để tiết kiệm bộ nhớ</td><td><c>Integer.valueOf()</c> cache -128..127, String pool</td></tr>
+<tr><td><a href="#j-p-proxy">Proxy</a></td><td>Đối tượng đại diện kiểm soát truy cập object thật</td><td><c>java.lang.reflect.Proxy</c></td></tr>
+<tr><td colspan="3"><strong>Hành vi (Behavioral)</strong></td></tr>
+<tr><td><a href="#j-p-chain">Chain of Responsibility</a></td><td>Request đi qua chuỗi handler, mỗi handler xử lý hoặc chuyển tiếp</td><td>Servlet <c>FilterChain</c>, <c>java.util.logging.Logger</c></td></tr>
+<tr><td><a href="#j-p-command">Command</a></td><td>Đóng gói yêu cầu thành object để xếp hàng, hoãn, hoàn tác</td><td><c>Runnable</c>, <c>Callable</c></td></tr>
+<tr><td>Iterator</td><td>Duyệt collection không lộ cấu trúc bên trong</td><td><c>Iterator</c>, <c>Spliterator</c></td></tr>
+<tr><td>Mediator</td><td>Gom tương tác giữa các object về một trung gian</td><td><c>ExecutorService</c> điều phối task</td></tr>
+<tr><td>Memento</td><td>Lưu và khôi phục trạng thái mà không lộ chi tiết</td><td><c>Serializable</c> snapshot</td></tr>
+<tr><td><a href="#j-p-observer">Observer</a></td><td>Đăng ký nhận thông báo khi có sự kiện</td><td><c>Flow.Subscriber</c>, <c>PropertyChangeListener</c></td></tr>
+<tr><td><a href="#j-p-state">State</a></td><td>Hành vi đổi theo trạng thái nội bộ</td><td><c>Thread.State</c></td></tr>
+<tr><td><a href="#j-p-strategy">Strategy</a></td><td>Các thuật toán hoán đổi được</td><td><c>Comparator</c></td></tr>
+<tr><td><a href="#j-p-template">Template Method</a></td><td>Lớp cha cố định khung thuật toán, lớp con điền bước</td><td><c>AbstractList</c>, <c>HttpServlet.service()</c></td></tr>
+<tr><td><a href="#j-p-visitor">Visitor</a></td><td>Tách thao tác khỏi cấu trúc object</td><td><c>FileVisitor</c> trong <c>Files.walkFileTree</c></td></tr>
+<tr><td>Interpreter</td><td>Biểu diễn và đánh giá một ngữ pháp</td><td><c>java.util.regex.Pattern</c></td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="j-p-factory" data-group="Design patterns">
+<h2>Static factory và Factory Method</h2>
+<p>Static factory method thay constructor: có tên gợi nghĩa, có thể trả object cache sẵn, trả lớp con, hoặc trả kiểu interface để giấu cài đặt.</p>
+<pre data-lang="java">
+public sealed interface Notifier permits EmailNotifier, SlackNotifier {
+    void send(String to, String msg);
+
+    static Notifier of(Channel channel, Config cfg) {       // factory method
+        return switch (channel) {
+            case EMAIL -> new EmailNotifier(cfg.smtpHost());
+            case SLACK -> new SlackNotifier(cfg.slackWebhook());
+        };
+    }
+}
+
+// quy ước đặt tên trong JDK
+Duration.ofSeconds(5);          // of: tạo từ tham số
+Instant.from(zonedDateTime);    // from: chuyển đổi kiểu
+Integer.valueOf("42");          // valueOf
+List.copyOf(src);               // copyOf
+Executors.newFixedThreadPool(4);// newX: luôn tạo mới
+</pre>
+</section>
+
+<section class="doc" id="j-p-builder" data-group="Design patterns">
+<h2>Builder</h2>
+<p>Dùng khi object có nhiều tham số tùy chọn: tránh constructor dài với cả chục tham số cùng kiểu dễ truyền nhầm thứ tự.</p>
+<pre data-lang="java">
+public record HttpRetryPolicy(int maxAttempts, Duration baseDelay, Duration maxDelay,
+                              Set<Integer> retryOn, boolean jitter) {
+
+    public static Builder builder() { return new Builder(); }
+
+    public static final class Builder {
+        private int maxAttempts = 3;                          // giá trị mặc định
+        private Duration baseDelay = Duration.ofMillis(200);
+        private Duration maxDelay = Duration.ofSeconds(10);
+        private Set<Integer> retryOn = Set.of(429, 502, 503, 504);
+        private boolean jitter = true;
+
+        public Builder maxAttempts(int v) { this.maxAttempts = v; return this; }
+        public Builder baseDelay(Duration v) { this.baseDelay = v; return this; }
+        public Builder maxDelay(Duration v) { this.maxDelay = v; return this; }
+        public Builder retryOn(Integer... codes) { this.retryOn = Set.of(codes); return this; }
+        public Builder jitter(boolean v) { this.jitter = v; return this; }
+
+        public HttpRetryPolicy build() {
+            if (maxAttempts < 1) throw new IllegalStateException("maxAttempts >= 1");
+            return new HttpRetryPolicy(maxAttempts, baseDelay, maxDelay, retryOn, jitter);
+        }
+    }
+}
+
+var policy = HttpRetryPolicy.builder().maxAttempts(5).retryOn(503).build();
+</pre>
+<p>Record có ít tham số thì không cần builder; thêm vài static factory là đủ. Thư viện Lombok <span class="badge b-pkg">lib</span> sinh builder bằng <c>@Builder</c> nếu dự án đã dùng nó.</p>
+</section>
+
+<section class="doc" id="j-p-singleton" data-group="Design patterns">
+<h2>Singleton</h2>
+<pre data-lang="java">
+// Cách 1: enum (gọn nhất, chống được reflection và serialization tạo bản thứ hai)
+public enum MetricsRegistry {
+    INSTANCE;
+    private final ConcurrentHashMap<String, LongAdder> counters = new ConcurrentHashMap<>();
+    public void inc(String name) { counters.computeIfAbsent(name, k -> new LongAdder()).increment(); }
+}
+MetricsRegistry.INSTANCE.inc("orders");
+
+// Cách 2: holder idiom (khởi tạo lười, thread-safe nhờ cơ chế nạp class)
+public final class GeoDatabase {
+    private GeoDatabase() { /* nạp file lớn */ }
+    private static final class Holder { static final GeoDatabase INSTANCE = new GeoDatabase(); }
+    public static GeoDatabase get() { return Holder.INSTANCE; }
+}
+</pre>
+<div class="note warn"><span class="nt">Cẩn trọng</span><p>Singleton toàn cục là trạng thái ẩn, khó thay khi test. Trong ứng dụng dùng DI (Spring, Guice), để container quản lý một instance duy nhất và inject qua constructor thay vì gọi <c>getInstance()</c>.</p></div>
+</section>
+
+<section class="doc" id="j-p-adapter" data-group="Design patterns">
+<h2>Adapter</h2>
+<p>Bọc một API bên ngoài để nó khớp với interface mà code của bạn mong đợi. Đây cũng là "adapter" trong kiến trúc Ports &amp; Adapters.</p>
+<pre data-lang="java">
+// port của ứng dụng
+public interface GeoLookup {
+    GeoInfo lookup(String ip);
+}
+
+// SDK bên ngoài có API khác
+// MaxMindReader.city(InetAddress) -> CityResponse
+
+public final class MaxMindGeoAdapter implements GeoLookup {
+    private final MaxMindReader reader;
+    public MaxMindGeoAdapter(MaxMindReader reader) { this.reader = reader; }
+
+    @Override public GeoInfo lookup(String ip) {
+        try {
+            CityResponse r = reader.city(InetAddress.getByName(ip));
+            return new GeoInfo(r.country().isoCode(), r.city().name());
+        } catch (IOException e) {
+            return GeoInfo.UNKNOWN;
+        }
+    }
+}
+</pre>
+</section>
+
+<section class="doc" id="j-p-decorator" data-group="Design patterns">
+<h2>Decorator</h2>
+<p>Thêm hành vi (cache, retry, đo thời gian, log) bằng cách bọc object có cùng interface. Có thể xếp chồng nhiều lớp. <c>java.io</c> là ví dụ kinh điển: <c>new BufferedReader(new InputStreamReader(new FileInputStream(f)))</c>.</p>
+<pre data-lang="java">
+public final class CachingGeoLookup implements GeoLookup {
+    private final GeoLookup inner;
+    private final Map<String, GeoInfo> cache = Collections.synchronizedMap(
+        new LinkedHashMap<>(1000, 0.75f, true) {                    // LRU
+            @Override protected boolean removeEldestEntry(Map.Entry<String, GeoInfo> e) { return size() > 10_000; }
+        });
+
+    public CachingGeoLookup(GeoLookup inner) { this.inner = inner; }
+
+    @Override public GeoInfo lookup(String ip) {
+        return cache.computeIfAbsent(ip, inner::lookup);
+    }
+}
+
+public final class TimedGeoLookup implements GeoLookup {
+    private final GeoLookup inner;
+    private final Timer timer;
+    public TimedGeoLookup(GeoLookup inner, Timer timer) { this.inner = inner; this.timer = timer; }
+    @Override public GeoInfo lookup(String ip) {
+        long t = System.nanoTime();
+        try { return inner.lookup(ip); } finally { timer.record(System.nanoTime() - t); }
+    }
+}
+
+GeoLookup geo = new TimedGeoLookup(new CachingGeoLookup(new MaxMindGeoAdapter(reader)), timer);
+</pre>
+</section>
+
+<section class="doc" id="j-p-proxy" data-group="Design patterns">
+<h2>Proxy và dynamic proxy</h2>
+<p>Proxy đứng thay object thật để kiểm soát truy cập: khởi tạo lười, kiểm tra quyền, gọi từ xa, transaction. Java tạo được proxy lúc runtime cho mọi interface; Spring dùng chính cơ chế này cho <c>@Transactional</c> và AOP.</p>
+<pre data-lang="java">
+@SuppressWarnings("unchecked")
+static <T> T logged(T target, Class<T> iface) {
+    InvocationHandler handler = (proxy, method, args) -> {
+        long start = System.nanoTime();
+        try {
+            return method.invoke(target, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();                                     // ném lỗi gốc, không phải lỗi bọc
+        } finally {
+            System.out.printf("%s.%s %d µs%n", iface.getSimpleName(), method.getName(),
+                              (System.nanoTime() - start) / 1_000);
+        }
+    };
+    return (T) Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[] { iface }, handler);
+}
+
+GeoLookup geo = logged(new MaxMindGeoAdapter(reader), GeoLookup.class);
+</pre>
+<div class="note warn"><span class="nt">Self-invocation</span><p>Proxy chỉ chặn lời gọi đi <em>qua</em> proxy. Method trong cùng class gọi nhau bằng <c>this.foo()</c> thì bỏ qua proxy, nên <c>@Transactional</c> hay <c>@Cacheable</c> của Spring không có tác dụng trong trường hợp đó.</p></div>
+</section>
+
+<section class="doc" id="j-p-strategy" data-group="Design patterns">
+<h2>Strategy</h2>
+<p>Trong Java hiện đại, strategy thường chỉ là một functional interface: truyền lambda thay vì viết class riêng. Khi strategy có tên cố định, enum với lambda là cách gọn.</p>
+<pre data-lang="java">
+// strategy = functional interface
+@FunctionalInterface
+interface RiskRule { int score(Order order); }
+
+List<RiskRule> rules = List.of(
+    o -> o.ipCountry().equals(o.billingCountry()) ? 0 : 30,
+    o -> o.total().compareTo(new BigDecimal("1000")) > 0 ? 20 : 0,
+    o -> o.isProxy() ? 50 : 0
+);
+int total = rules.stream().mapToInt(r -> r.score(order)).sum();
+
+// strategy có tên: enum
+enum Rounding {
+    UP(v -> v.setScale(0, RoundingMode.UP)),
+    BANKER(v -> v.setScale(0, RoundingMode.HALF_EVEN));
+
+    private final UnaryOperator<BigDecimal> fn;
+    Rounding(UnaryOperator<BigDecimal> fn) { this.fn = fn; }
+    BigDecimal apply(BigDecimal v) { return fn.apply(v); }
+}
+</pre>
+<p>Dùng class riêng khi strategy có trạng thái, cần nhiều method, hoặc cần phụ thuộc được inject (DB, HTTP client). Với Spring, inject <c>Map&lt;String, RiskRule&gt;</c> để có ngay registry theo tên bean.</p>
+</section>
+
+<section class="doc" id="j-p-observer" data-group="Design patterns">
+<h2>Observer</h2>
+<pre data-lang="java">
+public final class EventBus<E> {
+    private final List<Consumer<? super E>> listeners = new CopyOnWriteArrayList<>();  // an toàn khi đăng ký lúc đang phát
+
+    public Runnable subscribe(Consumer<? super E> l) {
+        listeners.add(l);
+        return () -> listeners.remove(l);                           // trả hàm hủy đăng ký
+    }
+
+    public void publish(E event) {
+        for (var l : listeners) {
+            try { l.accept(event); }
+            catch (RuntimeException ex) { log.warn("listener lỗi", ex); }   // một listener lỗi không chặn cái khác
+        }
+    }
+}
+
+EventBus<OrderFlagged> bus = new EventBus<>();
+Runnable unsubscribe = bus.subscribe(e -> notifier.send(e.shop(), "Đơn " + e.orderId() + " bị gắn cờ"));
+bus.publish(new OrderFlagged("demo.myshopify.com", "1001"));
+</pre>
+<p>Cần back-pressure (người nhận chậm hơn người phát) thì dùng <c>java.util.concurrent.Flow</c> / <c>SubmissionPublisher</c>, hoặc thư viện reactive như Project Reactor.</p>
+</section>
+
+<section class="doc" id="j-p-command" data-group="Design patterns">
+<h2>Command</h2>
+<p>Đóng gói một hành động thành object: xếp hàng, ghi log, thử lại, hoàn tác. Record + sealed interface mô tả tập command rõ ràng; xử lý bằng switch.</p>
+<pre data-lang="java">
+sealed interface RuleCommand permits BlockIp, AllowIp, DeleteRule {}
+record BlockIp(String shop, String ip) implements RuleCommand {}
+record AllowIp(String shop, String ip) implements RuleCommand {}
+record DeleteRule(String shop, String ruleId) implements RuleCommand {}
+
+final class RuleCommandHandler {
+    void handle(RuleCommand cmd) {
+        switch (cmd) {
+            case BlockIp(var shop, var ip) -> rules.block(shop, ip);
+            case AllowIp(var shop, var ip) -> rules.allow(shop, ip);
+            case DeleteRule(var shop, var id) -> rules.delete(shop, id);
+        }
+    }
+}
+
+// command có undo
+interface UndoableCommand { void execute(); void undo(); }
+Deque<UndoableCommand> history = new ArrayDeque<>();
+</pre>
+</section>
+
+<section class="doc" id="j-p-template" data-group="Design patterns">
+<h2>Template Method</h2>
+<pre data-lang="java">
+public abstract class ImportJob<R> {
+    // khung cố định: final để lớp con không đổi thứ tự
+    public final ImportResult run(Path file) throws IOException {
+        try (var lines = Files.lines(file)) {
+            List<R> rows = lines.skip(1).map(this::parse).filter(this::isValid).toList();
+            save(rows);
+            return new ImportResult(rows.size());
+        }
+    }
+
+    protected abstract R parse(String line);           // bước bắt buộc
+    protected boolean isValid(R row) { return true; }   // hook có mặc định
+    protected abstract void save(List<R> rows);
+}
+
+public final class IpBlocklistImport extends ImportJob<String> {
+    @Override protected String parse(String line) { return line.split(",")[0].strip(); }
+    @Override protected boolean isValid(String ip) { return InetAddresses.isValid(ip); }
+    @Override protected void save(List<String> ips) { repo.blockAll(ips); }
+}
+</pre>
+<p>Nếu chỉ có một hai bước thay đổi, truyền lambda vào constructor (strategy) thường gọn hơn kế thừa.</p>
+</section>
+
+<section class="doc" id="j-p-state" data-group="Design patterns">
+<h2>State</h2>
+<p>Mô hình trạng thái bằng sealed interface + record: mỗi trạng thái chỉ mang dữ liệu của nó, chuyển trạng thái được compiler kiểm tra đủ trường hợp.</p>
+<pre data-lang="java">
+sealed interface Subscription {
+    record Trial(Instant endsAt) implements Subscription {}
+    record Active(String planId, Instant renewsAt) implements Subscription {}
+    record PastDue(String planId, int failedAttempts) implements Subscription {}
+    record Cancelled(Instant at) implements Subscription {}
+}
+
+static Subscription onPaymentFailed(Subscription s) {
+    return switch (s) {
+        case Subscription.Active a -> new Subscription.PastDue(a.planId(), 1);
+        case Subscription.PastDue p when p.failedAttempts() >= 3 -> new Subscription.Cancelled(Instant.now());
+        case Subscription.PastDue p -> new Subscription.PastDue(p.planId(), p.failedAttempts() + 1);
+        case Subscription.Trial t -> t;
+        case Subscription.Cancelled c -> c;
+    };
+}
+</pre>
+</section>
+
+<section class="doc" id="j-p-chain" data-group="Design patterns">
+<h2>Chain of Responsibility</h2>
+<p>Mỗi handler quyết định xử lý hay chuyển cho handler tiếp theo. Đây chính là mô hình của Servlet Filter và middleware trong NestJS/Express.</p>
+<pre data-lang="java">
+@FunctionalInterface
+interface Check {
+    Optional<Verdict> apply(Visitor v);                 // empty = không kết luận, chuyển tiếp
+}
+
+final class CheckChain {
+    private final List<Check> checks;
+    CheckChain(List<Check> checks) { this.checks = List.copyOf(checks); }
+
+    Verdict evaluate(Visitor v) {
+        for (Check c : checks) {
+            Optional<Verdict> r = c.apply(v);
+            if (r.isPresent()) return r.get();          // handler đầu tiên có kết luận thắng
+        }
+        return Verdict.ALLOW;
+    }
+}
+
+var chain = new CheckChain(List.of(
+    v -> whitelist.contains(v.ip()) ? Optional.of(Verdict.ALLOW) : Optional.empty(),
+    v -> blacklist.contains(v.ip()) ? Optional.of(Verdict.BLOCK) : Optional.empty(),
+    v -> v.isBot() ? Optional.of(Verdict.CHALLENGE) : Optional.empty()
+));
+</pre>
+</section>
+
+<section class="doc" id="j-p-visitor" data-group="Design patterns">
+<h2>Visitor và sealed + switch</h2>
+<p>Visitor cổ điển cần method <c>accept(Visitor)</c> ở mọi class và một interface visitor có method cho từng loại. Với Java 21, sealed interface + pattern matching switch đạt cùng mục đích (thêm thao tác mới mà không sửa các class) với ít code hơn, và compiler báo lỗi khi thiếu trường hợp.</p>
+<pre data-lang="java">
+sealed interface Expr permits Num, Add, Mul, Neg {}
+record Num(double v) implements Expr {}
+record Add(Expr l, Expr r) implements Expr {}
+record Mul(Expr l, Expr r) implements Expr {}
+record Neg(Expr e) implements Expr {}
+
+// "visitor" 1: tính giá trị
+static double eval(Expr e) {
+    return switch (e) {
+        case Num(var v) -> v;
+        case Add(var l, var r) -> eval(l) + eval(r);
+        case Mul(var l, var r) -> eval(l) * eval(r);
+        case Neg(var x) -> -eval(x);
+    };
+}
+
+// "visitor" 2: in ra chuỗi, không cần sửa các record
+static String show(Expr e) {
+    return switch (e) {
+        case Num(var v) -> String.valueOf(v);
+        case Add(var l, var r) -> "(" + show(l) + " + " + show(r) + ")";
+        case Mul(var l, var r) -> show(l) + " * " + show(r);
+        case Neg(var x) -> "-" + show(x);
+    };
+}
+</pre>
+<p>Đánh đổi: thêm <em>thao tác</em> mới rất dễ, nhưng thêm <em>loại</em> mới phải sửa mọi switch (compiler sẽ chỉ ra chỗ cần sửa). Khi tập loại mở cho bên ngoài mở rộng, dùng đa hình bằng method trong interface.</p>
+</section>
+
+<section class="doc" id="j-p-value" data-group="Pattern hiện đại">
+<h2>Value Object và Result type</h2>
+<p>Bọc giá trị nguyên thủy vào record có kiểm tra hợp lệ, để kiểu dữ liệu nói lên ý nghĩa và lỗi bị chặn ngay khi tạo object ("parse, don't validate").</p>
+<pre data-lang="java">
+public record ShopDomain(String value) {
+    private static final Pattern P = Pattern.compile("^[a-z0-9-]+\\.myshopify\\.com$");
+    public ShopDomain {
+        value = value.strip().toLowerCase();
+        if (!P.matcher(value).matches()) throw new IllegalArgumentException("Domain không hợp lệ: " + value);
+    }
+}
+
+public record IpAddress(String value) {
+    public IpAddress { if (!InetAddresses.isValid(value)) throw /* Guava */ new IllegalArgumentException(value); }
+}
+
+// method không thể nhầm thứ tự tham số
+void block(ShopDomain shop, IpAddress ip) { }
+</pre>
+<h3>Result thay cho exception khi lỗi là chuyện bình thường</h3>
+<pre data-lang="java">
+public sealed interface Result<T> {
+    record Ok<T>(T value) implements Result<T> {}
+    record Err<T>(String code, String message) implements Result<T> {}
+
+    static <T> Result<T> ok(T v) { return new Ok<>(v); }
+    static <T> Result<T> err(String code, String msg) { return new Err<>(code, msg); }
+}
+
+Result<Order> r = importer.parse(line);
+String out = switch (r) {
+    case Result.Ok<Order>(var order) -> "OK " + order.id();
+    case Result.Err<Order>(var code, var msg) -> "Bỏ qua dòng: " + code + " " + msg;
+};
+</pre>
+</section>
+
+<section class="doc" id="j-p-di" data-group="Pattern hiện đại">
+<h2>Dependency Injection và Ports &amp; Adapters</h2>
+<p>Class nhận phụ thuộc qua constructor thay vì tự tạo. Không cần framework: một "composition root" (thường là <c>main</c>) lắp ráp mọi thứ. Spring/Guice chỉ tự động hóa bước lắp ráp này.</p>
+<pre data-lang="java">
+// domain + port: không biết gì về HTTP, DB
+public interface OrderRepository { Optional<Order> find(String id); void save(Order o); }
+public interface GeoLookup { GeoInfo lookup(String ip); }
+
+public final class RiskService {
+    private final OrderRepository orders;
+    private final GeoLookup geo;
+    private final Clock clock;
+
+    public RiskService(OrderRepository orders, GeoLookup geo, Clock clock) {
+        this.orders = orders; this.geo = geo; this.clock = clock;
+    }
+    // logic thuần, test bằng fake in-memory
+}
+
+// composition root
+public static void main(String[] args) {
+    var mongo = MongoClients.create(System.getenv("MONGO_URI"));
+    var service = new RiskService(
+        new MongoOrderRepository(mongo.getDatabase("fraud")),
+        new CachingGeoLookup(new MaxMindGeoAdapter(reader)),
+        Clock.systemUTC());
+    new HttpServerAdapter(service).start(8080);
+}
+</pre>
+</section>
+
+<section class="doc" id="j-p-resilience" data-group="Pattern hiện đại">
+<h2>Retry, Circuit Breaker, Bulkhead</h2>
+<p>Gọi dịch vụ ngoài thì phải tính tới lỗi tạm thời. Ba pattern bổ trợ nhau:</p>
+<div class="grid2">
+  <div class="card"><h5>Retry</h5><p>Thử lại lỗi tạm thời với backoff mũ + jitter. Chỉ retry thao tác idempotent.</p></div>
+  <div class="card"><h5>Circuit Breaker</h5><p>Lỗi vượt ngưỡng thì "ngắt mạch" (open), trả lỗi ngay; sau một lúc thử lại (half-open) rồi đóng (closed).</p></div>
+  <div class="card"><h5>Bulkhead</h5><p>Giới hạn số lời gọi đồng thời tới mỗi dịch vụ để một dịch vụ chậm không nuốt hết tài nguyên.</p></div>
+</div>
+<pre data-lang="java">
+static <T> T retry(Callable<T> call, HttpRetryPolicy p) throws Exception {
+    for (int attempt = 1; ; attempt++) {
+        try {
+            return call.call();
+        } catch (IOException e) {
+            if (attempt >= p.maxAttempts()) throw e;
+            long cap = Math.min(p.maxDelay().toMillis(), p.baseDelay().toMillis() << (attempt - 1));
+            long sleep = p.jitter() ? ThreadLocalRandom.current().nextLong(cap + 1) : cap;
+            Thread.sleep(Duration.ofMillis(sleep));     // rẻ trên virtual thread
+        }
+    }
+}
+</pre>
+<p>Production nên dùng <strong>Resilience4j</strong> <span class="badge b-pkg">lib</span>: có sẵn <c>Retry</c>, <c>CircuitBreaker</c>, <c>Bulkhead</c>, <c>RateLimiter</c>, <c>TimeLimiter</c>, ghép được với nhau và tích hợp Spring Boot bằng annotation.</p>
+</section>
+
+<section class="doc" id="j-p-producer" data-group="Pattern hiện đại">
+<h2>Producer–Consumer</h2>
+<p>Tách nơi sinh việc và nơi xử lý bằng một hàng đợi có giới hạn. Hàng đợi đầy thì producer bị chặn lại (back-pressure), tránh tràn bộ nhớ.</p>
+<pre data-lang="java">
+BlockingQueue<Visit> queue = new ArrayBlockingQueue<>(10_000);
+
+// producer: request handler
+void onVisit(Visit v) {
+    if (!queue.offer(v)) metrics.inc("visits.dropped");   // không chặn request: bỏ khi đầy
+}
+
+// consumer: gom theo lô rồi ghi DB
+Thread.ofVirtual().start(() -> {
+    List<Visit> batch = new ArrayList<>(500);
+    while (!Thread.currentThread().isInterrupted()) {
+        try {
+            batch.add(queue.take());                         // chờ có phần tử
+            queue.drainTo(batch, 499);                       // lấy thêm những gì đang có
+            repo.insertMany(batch);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();              // giữ cờ interrupt rồi thoát
+        } finally {
+            batch.clear();
+        }
+    }
+});
+</pre>
+</section>
+
+<section class="doc" id="j-p-enterprise" data-group="Pattern hiện đại">
+<h2>Các pattern kiến trúc khác</h2>
+<p>Catalog java-design-patterns.com liệt kê thêm nhiều pattern kiến trúc, có cài đặt Java cho từng mục. Những pattern sau đã được trình bày chi tiết trong tab NestJS; ý tưởng giống hệt, chỉ khác cú pháp:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Pattern</th><th>Ý chính</th><th>Trong Java/Spring</th></tr></thead>
+<tbody>
+<tr><td>Repository</td><td>Tập trung truy cập dữ liệu sau một interface</td><td>Spring Data <c>Repository</c></td></tr>
+<tr><td>Service Layer</td><td>Gom business logic, controller chỉ điều phối</td><td><c>@Service</c></td></tr>
+<tr><td>Unit of Work</td><td>Nhiều thay đổi commit cùng nhau</td><td><c>@Transactional</c>, JPA persistence context</td></tr>
+<tr><td>DTO / Data Mapper</td><td>Tách model lưu trữ khỏi model API</td><td>record + MapStruct</td></tr>
+<tr><td>CQRS</td><td>Tách luồng đọc và ghi</td><td>Axon Framework, hoặc tự tách service</td></tr>
+<tr><td>Event Sourcing</td><td>Lưu chuỗi sự kiện thay vì trạng thái cuối</td><td>Axon, EventStoreDB</td></tr>
+<tr><td>Transactional Outbox</td><td>Ghi event cùng transaction với dữ liệu, relay publish sau</td><td>Debezium (CDC), Spring Modulith</td></tr>
+<tr><td>Saga</td><td>Giao dịch phân tán = chuỗi giao dịch cục bộ + hành động bù trừ</td><td>Orchestration/choreography qua Kafka/RabbitMQ</td></tr>
+<tr><td>Idempotent Consumer</td><td>Xử lý trùng message không gây hậu quả</td><td>Bảng processed-message với unique key</td></tr>
+<tr><td>Specification</td><td>Đóng gói điều kiện nghiệp vụ thành object ghép được</td><td>Spring Data JPA <c>Specification</c></td></tr>
+<tr><td>Null Object</td><td>Object "không làm gì" thay cho null</td><td><c>Notifier.noop()</c>, <c>Collections.emptyList()</c></td></tr>
+<tr><td>Hexagonal / Clean</td><td>Domain ở trung tâm, phụ thuộc hướng vào trong</td><td>Module Gradle tách domain/application/infrastructure</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="j-effective" data-group="Tra cứu">
+<h2>Nguyên tắc viết Java tốt</h2>
+<p>Tổng hợp từ "Effective Java" (Joshua Bloch) và kinh nghiệm cộng đồng:</p>
+<ul>
+  <li>Cân nhắc static factory thay constructor; dùng builder khi có nhiều tham số tùy chọn; singleton thì dùng enum.</li>
+  <li>Giảm tối đa khả năng sửa đổi: field <c>final</c>, class <c>final</c> hoặc record, sao chép phòng thủ collection.</li>
+  <li>Ưu tiên composition hơn kế thừa; thiết kế cho kế thừa hoặc cấm nó (<c>final</c>, <c>sealed</c>).</li>
+  <li>Override <c>equals</c> thì override cả <c>hashCode</c>.</li>
+  <li>Khai báo biến theo interface: <c>List&lt;X&gt; xs = new ArrayList&lt;&gt;()</c>.</li>
+  <li>Trả collection rỗng, đừng trả <c>null</c>. <c>Optional</c> chỉ dùng cho kiểu trả về.</li>
+  <li>Kiểm tra tham số đầu method: <c>Objects.requireNonNull</c>, <c>Objects.checkIndex</c>.</li>
+  <li>Dùng exception đúng loại; không nuốt lỗi; giữ nguyên cause khi bọc lại.</li>
+  <li>Ưu tiên tiện ích của <c>java.util.concurrent</c> hơn <c>wait/notify</c>; ưu tiên dữ liệu bất biến khi chia sẻ giữa các thread.</li>
+  <li>Tiền tệ dùng <c>BigDecimal</c> tạo từ chuỗi (<c>new BigDecimal("0.10")</c>), không dùng <c>double</c>.</li>
+</ul>
+</section>
+
+<section class="doc" id="j-loi" data-group="Tra cứu">
+<h2>Lỗi thường gặp</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Lỗi</th><th>Nguyên nhân và cách sửa</th></tr></thead>
+<tbody>
+<tr><td>So sánh chuỗi bằng <c>==</c></td><td><c>==</c> so tham chiếu. Dùng <c>a.equals(b)</c> hoặc <c>Objects.equals(a, b)</c>.</td></tr>
+<tr><td><c>Integer</c> 127 == 127 đúng, 128 == 128 sai</td><td>Cache của <c>Integer.valueOf</c> chỉ từ -128 tới 127. So sánh wrapper bằng <c>equals</c>.</td></tr>
+<tr><td><c>NullPointerException</c> khi unboxing</td><td><c>int x = map.get(k)</c> với key không có. Dùng <c>getOrDefault</c>.</td></tr>
+<tr><td><c>ConcurrentModificationException</c></td><td>Sửa list trong for-each. Dùng <c>removeIf</c> hoặc <c>Iterator.remove()</c>.</td></tr>
+<tr><td><c>new BigDecimal(0.1)</c> ra số dài</td><td>Tạo từ <c>double</c> mang theo sai số nhị phân. Dùng <c>new BigDecimal("0.1")</c> hoặc <c>BigDecimal.valueOf(0.1)</c>.</td></tr>
+<tr><td>Rò rỉ file/connection</td><td>Quên đóng tài nguyên. Luôn dùng try-with-resources.</td></tr>
+<tr><td><c>ThreadLocal</c> giữ dữ liệu cũ</td><td>Thread trong pool được tái sử dụng. Gọi <c>remove()</c> trong <c>finally</c>, hoặc dùng <c>ScopedValue</c>.</td></tr>
+<tr><td>Nuốt <c>InterruptedException</c></td><td>Bắt rồi bỏ qua làm thread không dừng được. Gọi <c>Thread.currentThread().interrupt()</c> hoặc ném tiếp.</td></tr>
+<tr><td>JVM bị kill trong container</td><td>Heap đặt lớn hơn giới hạn container. Dùng <c>-XX:MaxRAMPercentage</c>.</td></tr>
+<tr><td>Deadlock</td><td>Hai thread lấy khóa theo thứ tự ngược nhau. Lấy khóa theo thứ tự cố định; <c>jcmd &lt;pid&gt; Thread.print</c> sẽ chỉ ra deadlock.</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="j-nguon" data-group="Tra cứu">
+<h2>Nguồn tham khảo</h2>
+<ul>
+  <li><a href="https://dev.java/learn/" target="_blank" rel="noopener">dev.java/learn</a>: lộ trình học chính thức (ngôn ngữ, API, virtual threads, công cụ JVM)</li>
+  <li><a href="https://docs.oracle.com/en/java/javase/27/" target="_blank" rel="noopener">Java SE 27 documentation</a> (API, GC tuning guide, diagnostic tools)</li>
+  <li><a href="https://openjdk.org/projects/jdk/" target="_blank" rel="noopener">OpenJDK: danh sách JEP theo từng bản</a></li>
+  <li><a href="https://refactoring.guru/design-patterns/java" target="_blank" rel="noopener">Refactoring.Guru: design patterns in Java</a></li>
+  <li><a href="https://java-design-patterns.com/patterns/" target="_blank" rel="noopener">java-design-patterns.com</a>: catalog GoF và pattern kiến trúc</li>
+  <li><a href="https://www.infoq.com/news/2026/03/java26-released" target="_blank" rel="noopener">InfoQ: Java 26 released</a> · <a href="https://www.oracle.com/news/announcement/oracle-releases-java-27-2026-09-15/" target="_blank" rel="noopener">Oracle: Java 27 release</a></li>
+  <li>Joshua Bloch, <em>Effective Java</em> (3rd edition)</li>
+</ul>
+</section>

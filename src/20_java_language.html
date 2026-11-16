@@ -1,0 +1,501 @@
+</div>
+<div class="panel" data-panel="java" role="tabpanel" aria-labelledby="tab-java" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Tài liệu tổng hợp từ dev.java, Oracle Java SE docs và các catalog pattern</p>
+  <h1>Sổ tay Java</h1>
+  <p class="lead">Java hiện đại từ JDK 21 đến JDK 27: ngôn ngữ, thư viện chuẩn, lập trình đồng thời với virtual threads, công cụ JVM, và các design pattern viết theo phong cách Java mới (record, sealed, lambda). Mỗi phần có ví dụ chạy được và ghi rõ phiên bản JDK.</p>
+  <div class="stats"><span><b>__SECTIONS_java__</b> chủ đề</span><span><b>__CODES_java__</b> ví dụ code</span><span>Bản mới nhất <b>JDK 27</b>, LTS gần nhất <b>JDK 25</b></span></div>
+</div>
+
+<section class="doc" id="j-tong-quan" data-group="Bắt đầu">
+<h2>Java, JDK và lộ trình phiên bản</h2>
+<p>Java là ngôn ngữ hướng đối tượng, kiểu tĩnh, biên dịch ra <strong>bytecode</strong> rồi chạy trên <strong>JVM</strong> (Java Virtual Machine). Nhờ JVM, cùng một file <c>.class</c> chạy được trên mọi hệ điều hành có JVM.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Thuật ngữ</th><th>Ý nghĩa</th></tr></thead>
+<tbody>
+<tr><td>JVM</td><td>Máy ảo chạy bytecode: nạp class, thông dịch, biên dịch JIT, quản lý bộ nhớ và GC.</td></tr>
+<tr><td>JRE</td><td>JVM + thư viện chuẩn, đủ để chạy chương trình. Từ JDK 11 không còn phát hành riêng; dùng <c>jlink</c> để tạo runtime gọn.</td></tr>
+<tr><td>JDK</td><td>JRE + công cụ phát triển: <c>javac</c>, <c>jar</c>, <c>jshell</c>, <c>jlink</c>, <c>jcmd</c>, <c>jfr</c>…</td></tr>
+<tr><td>OpenJDK</td><td>Mã nguồn mở của Java. Các bản phân phối: Eclipse Temurin, Oracle JDK, Amazon Corretto, Azul Zulu, Microsoft Build of OpenJDK…</td></tr>
+</tbody></table></div>
+
+<h3>Lịch phát hành</h3>
+<p>Java ra bản mới mỗi 6 tháng (tháng 3 và tháng 9). Cứ 2 năm có một bản <strong>LTS</strong> được hỗ trợ dài hạn. Tính đến 11/2026: <strong>JDK 27</strong> (phát hành 15/09/2026) là bản mới nhất, không phải LTS; các bản LTS gần đây là <strong>17, 21, 25</strong>; LTS tiếp theo dự kiến là JDK 29 (09/2027). Dự án production nên chạy LTS.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Tính năng</th><th>Chính thức từ</th></tr></thead>
+<tbody>
+<tr><td><c>var</c> cho biến cục bộ</td><td>JDK 10</td></tr>
+<tr><td>Switch expression <c>case X -&gt;</c></td><td>JDK 14</td></tr>
+<tr><td>Text block <c>"""</c></td><td>JDK 15</td></tr>
+<tr><td>Record, pattern matching cho <c>instanceof</c>, <c>Stream.toList()</c></td><td>JDK 16</td></tr>
+<tr><td>Sealed class</td><td>JDK 17 (LTS)</td></tr>
+<tr><td>Virtual threads, pattern matching cho switch, record patterns, Sequenced collections, Generational ZGC</td><td>JDK 21 (LTS)</td></tr>
+<tr><td>Biến không tên <c>_</c>, Foreign Function &amp; Memory API, chạy chương trình nhiều file nguồn</td><td>JDK 22</td></tr>
+<tr><td>Markdown trong Javadoc (<c>///</c>)</td><td>JDK 23</td></tr>
+<tr><td>Stream Gatherers, Class-File API, virtual thread không bị "ghim" bởi <c>synchronized</c></td><td>JDK 24</td></tr>
+<tr><td>Scoped Values, compact source file + <c>void main()</c>, <c>import module</c>, câu lệnh trước <c>super()</c>, compact object headers</td><td>JDK 25 (LTS)</td></tr>
+<tr><td>HTTP/3 cho <c>HttpClient</c>, gỡ Applet API</td><td>JDK 26</td></tr>
+<tr><td>G1 là GC mặc định trong mọi cấu hình máy, trao đổi khóa TLS 1.3 chống lượng tử (post-quantum)</td><td>JDK 27</td></tr>
+</tbody></table></div>
+<p>Vẫn đang <span class="badge b-v12">preview</span> ở JDK 27: Structured Concurrency, pattern với kiểu nguyên thủy (primitive patterns), Lazy Constants; Vector API vẫn là incubator. String Templates đã bị rút khỏi JDK từ bản 23.</p>
+
+<h3>Cài đặt và chương trình đầu tiên</h3>
+<pre data-lang="bash">
+# cài JDK bằng SDKMAN (Linux/macOS)
+curl -s "https://get.sdkman.io" | bash
+sdk install java 25-tem        # Eclipse Temurin 25 (LTS)
+java -version
+</pre>
+<p>Từ JDK 25, chương trình nhỏ không cần khai báo class hay <c>public static void main(String[] args)</c>. Lớp <c>IO</c> trong <c>java.lang</c> cung cấp <c>println</c> và <c>readln</c>.</p>
+<pre data-lang="java" data-file="Hello.java">
+void main() {
+    String name = IO.readln("Tên bạn: ");
+    IO.println("Xin chào " + name);
+}
+</pre>
+<pre data-lang="bash">
+java Hello.java          # chạy thẳng file nguồn, không cần javac (JDK 11+; nhiều file từ JDK 22)
+jshell                   # REPL: thử nhanh biểu thức, API
+</pre>
+<p>Cách viết truyền thống vẫn là chuẩn cho ứng dụng lớn:</p>
+<pre data-lang="java" data-file="src/main/java/com/example/App.java">
+package com.example;
+
+public class App {
+    public static void main(String[] args) {
+        System.out.println("Hello, Java " + Runtime.version().feature());
+    }
+}
+</pre>
+</section>
+
+<section class="doc" id="j-jvm" data-group="Bắt đầu">
+<h2>JVM hoạt động thế nào</h2>
+<ol class="pipeline">
+  <li class="k-in"><b>javac biên dịch</b><span><c>App.java</c> → <c>App.class</c> chứa bytecode, độc lập nền tảng.</span></li>
+  <li><b>Class loader</b><span>Nạp class khi lần đầu được dùng (lazy), theo thứ tự bootstrap → platform → application.</span></li>
+  <li><b>Bytecode verifier</b><span>Kiểm tra bytecode hợp lệ và an toàn trước khi chạy.</span></li>
+  <li class="k-int"><b>Interpreter + JIT</b><span>Ban đầu thông dịch; method "nóng" được JIT (C1 rồi C2) biên dịch thành mã máy tối ưu.</span></li>
+  <li class="k-guard"><b>Garbage collector</b><span>Tự giải phóng object không còn tham chiếu. Mặc định G1.</span></li>
+</ol>
+<div class="table-wrap"><table>
+<thead><tr><th>Vùng nhớ</th><th>Chứa gì</th><th>Lỗi khi đầy</th></tr></thead>
+<tbody>
+<tr><td>Heap</td><td>Mọi object và mảng, dùng chung giữa các thread. GC quản lý.</td><td><c>OutOfMemoryError: Java heap space</c></td></tr>
+<tr><td>Stack (mỗi thread)</td><td>Frame của từng lời gọi method: biến cục bộ, tham chiếu.</td><td><c>StackOverflowError</c> (đệ quy quá sâu)</td></tr>
+<tr><td>Metaspace</td><td>Metadata của class, nằm ngoài heap.</td><td><c>OutOfMemoryError: Metaspace</c></td></tr>
+</tbody></table></div>
+<div class="note tip"><span class="nt">Ghi nhớ</span><p>Java luôn <strong>truyền theo giá trị</strong>. Với object, giá trị được truyền là tham chiếu: method sửa được nội dung object, nhưng gán biến tham số sang object khác không ảnh hưởng bên gọi.</p></div>
+</section>
+
+<section class="doc" id="j-co-ban" data-group="Ngôn ngữ">
+<h2>Cú pháp cơ bản</h2>
+<h3>Kiểu dữ liệu</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Nguyên thủy</th><th>Kích thước</th><th>Wrapper</th></tr></thead>
+<tbody>
+<tr><td><c>byte</c>, <c>short</c>, <c>int</c>, <c>long</c></td><td>8, 16, 32, 64 bit</td><td><c>Byte</c>, <c>Short</c>, <c>Integer</c>, <c>Long</c></td></tr>
+<tr><td><c>float</c>, <c>double</c></td><td>32, 64 bit (IEEE 754)</td><td><c>Float</c>, <c>Double</c></td></tr>
+<tr><td><c>char</c></td><td>16 bit UTF-16</td><td><c>Character</c></td></tr>
+<tr><td><c>boolean</c></td><td>true/false</td><td><c>Boolean</c></td></tr>
+</tbody></table></div>
+<pre data-lang="java">
+var count = 10;                    // suy luận kiểu int (chỉ dùng cho biến cục bộ)
+long big = 3_000_000_000L;         // dấu _ cho dễ đọc, hậu tố L
+double ratio = 0.1 + 0.2;          // 0.30000000000000004 → tiền tệ phải dùng BigDecimal
+Integer boxed = count;             // autoboxing
+final String env = "prod";         // không gán lại được
+
+String json = """
+    {
+      "shop": "demo.myshopify.com",
+      "plan": "pro"
+    }
+    """;                           // text block: giữ nguyên xuống dòng
+
+String s = "Fraud";
+s.equals("Fraud");                 // so sánh nội dung: luôn dùng equals, không dùng ==
+String.join(", ", List.of("a", "b"));
+"  hi ".strip().repeat(2);         // "hihi"
+var sb = new StringBuilder();      // nối chuỗi trong vòng lặp
+</pre>
+
+<h3>Điều khiển luồng và switch expression</h3>
+<pre data-lang="java">
+for (int i = 0; i < 3; i++) { }
+for (String tag : tags) { }
+while (queue.poll() != null) { }
+
+// switch expression: trả giá trị, không rơi xuống case sau, phải đủ trường hợp
+int days = switch (month) {
+    case FEBRUARY -> leap ? 29 : 28;
+    case APRIL, JUNE, SEPTEMBER, NOVEMBER -> 30;
+    default -> 31;
+};
+
+String level = switch (score / 10) {
+    case 10, 9 -> "A";
+    case 8 -> "B";
+    default -> {
+        log("low score " + score);
+        yield "C";                 // yield trả giá trị từ block
+    }
+};
+</pre>
+
+<h3>Mảng và regex</h3>
+<pre data-lang="java">
+int[] nums = {5, 3, 8};
+Arrays.sort(nums);
+int[][] grid = new int[3][4];
+
+Pattern IP = Pattern.compile("^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$"); // compile một lần, tái sử dụng
+Matcher m = IP.matcher("10.0.0.1");
+if (m.matches()) IO.println(m.group(1));
+</pre>
+</section>
+
+<section class="doc" id="j-oop" data-group="Ngôn ngữ">
+<h2>Lập trình hướng đối tượng</h2>
+<pre data-lang="java">
+public abstract class Account {
+    private final String id;               // đóng gói: field private, chỉ đọc qua method
+    protected long balance;
+
+    protected Account(String id) {
+        this.id = Objects.requireNonNull(id);
+    }
+
+    public String id() { return id; }
+
+    public abstract long fee();            // lớp con bắt buộc cài đặt
+
+    public void withdraw(long amount) {
+        if (amount + fee() > balance) throw new IllegalStateException("Không đủ số dư");
+        balance -= amount + fee();
+    }
+}
+
+public final class PremiumAccount extends Account {   // final: không cho kế thừa tiếp
+    public PremiumAccount(String id) { super(id); }
+
+    @Override
+    public long fee() { return 0; }
+}
+</pre>
+<div class="table-wrap"><table>
+<thead><tr><th>Modifier</th><th>Truy cập được từ</th></tr></thead>
+<tbody>
+<tr><td><c>private</c></td><td>Chỉ trong class</td></tr>
+<tr><td>(không ghi)</td><td>Cùng package</td></tr>
+<tr><td><c>protected</c></td><td>Cùng package + lớp con</td></tr>
+<tr><td><c>public</c></td><td>Mọi nơi (trong giới hạn module export)</td></tr>
+</tbody></table></div>
+
+<h3>Interface</h3>
+<pre data-lang="java">
+public interface Notifier {
+    void send(String to, String msg);                        // abstract
+
+    default void sendAll(List<String> to, String msg) {      // default method: có thân
+        to.forEach(t -> send(t, msg));
+    }
+
+    static Notifier noop() { return (to, msg) -> { }; }      // static factory
+
+    private String format(String m) { return "[fraud] " + m; } // private helper (JDK 9+)
+}
+</pre>
+<p>Một class chỉ kế thừa một class nhưng implement nhiều interface. Ưu tiên <strong>composition</strong> (giữ object khác làm field) hơn kế thừa khi chỉ muốn tái sử dụng code.</p>
+
+<h3>equals và hashCode</h3>
+<p>Hai object bằng nhau theo <c>equals</c> bắt buộc có cùng <c>hashCode</c>, nếu không <c>HashMap</c>/<c>HashSet</c> hoạt động sai. Cách dễ nhất là dùng <a href="#j-records">record</a>, compiler tự sinh cả hai.</p>
+<pre data-lang="java">
+@Override public boolean equals(Object o) {
+    return o instanceof Money m && amount.equals(m.amount) && currency.equals(m.currency);
+}
+@Override public int hashCode() { return Objects.hash(amount, currency); }
+</pre>
+
+<h3>Câu lệnh trước super() <span class="badge b-v11">Java 25</span></h3>
+<pre data-lang="java">
+public class PositiveBig extends BigInteger {
+    public PositiveBig(long value) {
+        if (value <= 0) throw new IllegalArgumentException("phải > 0");  // trước JDK 25 không được phép
+        super(String.valueOf(value));
+    }
+}
+</pre>
+</section>
+
+<section class="doc" id="j-records" data-group="Ngôn ngữ">
+<h2>Records <span class="badge b-v11">Java 16</span></h2>
+<p>Record là class bất biến chỉ để chứa dữ liệu. Compiler tự sinh constructor, accessor (<c>name()</c>, không phải <c>getName()</c>), <c>equals</c>, <c>hashCode</c>, <c>toString</c>. Field luôn <c>private final</c>.</p>
+<pre data-lang="java">
+public record Money(BigDecimal amount, String currency) {
+
+    public Money {                                        // compact constructor: validate + chuẩn hóa
+        Objects.requireNonNull(amount);
+        if (amount.signum() < 0) throw new IllegalArgumentException("Số tiền âm");
+        currency = currency.toUpperCase();
+        amount = amount.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    public static Money vnd(long v) { return new Money(BigDecimal.valueOf(v), "VND"); }
+
+    public Money plus(Money other) {                      // "sửa" = tạo object mới
+        if (!currency.equals(other.currency)) throw new IllegalArgumentException("Khác loại tiền");
+        return new Money(amount.add(other.amount), currency);
+    }
+}
+
+var a = Money.vnd(100_000);
+a.amount();                       // accessor
+a.equals(Money.vnd(100_000));     // true: so sánh theo giá trị
+</pre>
+<ul>
+  <li>Record có thể implement interface, có method, static field, nested record; không kế thừa class khác và không có field instance ngoài các thành phần.</li>
+  <li>Thành phần là <c>List</c> thì vẫn có thể bị sửa từ bên ngoài: sao chép phòng thủ bằng <c>List.copyOf(list)</c> trong compact constructor.</li>
+  <li>Dùng record cho DTO, value object, key của Map, kết quả trả về nhiều giá trị.</li>
+</ul>
+</section>
+
+<section class="doc" id="j-enums" data-group="Ngôn ngữ">
+<h2>Enums</h2>
+<p>Enum trong Java là class đầy đủ: có field, constructor, method, thậm chí mỗi hằng có hành vi riêng.</p>
+<pre data-lang="java">
+public enum Plan {
+    FREE(1_000, 0), PRO(50_000, 19), ENTERPRISE(Integer.MAX_VALUE, 99);
+
+    private final int monthlyVisitors;
+    private final int priceUsd;
+
+    Plan(int monthlyVisitors, int priceUsd) {
+        this.monthlyVisitors = monthlyVisitors;
+        this.priceUsd = priceUsd;
+    }
+
+    public boolean allows(int visitors) { return visitors <= monthlyVisitors; }
+}
+
+Plan p = Plan.valueOf("PRO");          // từ chuỗi; sai tên → IllegalArgumentException
+for (Plan x : Plan.values()) { }
+EnumMap<Plan, Integer> counts = new EnumMap<>(Plan.class);   // Map nhanh nhất cho key enum
+EnumSet<Plan> paid = EnumSet.of(Plan.PRO, Plan.ENTERPRISE);
+</pre>
+</section>
+
+<section class="doc" id="j-sealed" data-group="Ngôn ngữ">
+<h2>Sealed classes <span class="badge b-v11">Java 17</span></h2>
+<p><c>sealed</c> giới hạn những class nào được kế thừa/implement. Compiler biết chính xác tập con, nên <c>switch</c> không cần <c>default</c> và sẽ báo lỗi biên dịch khi thêm loại mới mà quên xử lý.</p>
+<pre data-lang="java">
+public sealed interface PaymentEvent permits Charged, Refunded, Disputed {}
+
+public record Charged(String orderId, Money amount) implements PaymentEvent {}
+public record Refunded(String orderId, Money amount, String reason) implements PaymentEvent {}
+public record Disputed(String orderId) implements PaymentEvent {}
+
+// lớp con của sealed class phải là final, sealed, hoặc non-sealed
+public sealed abstract class Shape permits Circle, Polygon {}
+public final class Circle extends Shape {}
+public non-sealed class Polygon extends Shape {}     // mở lại cho kế thừa tự do
+</pre>
+<p>Sealed + record là cách Java mô hình hóa "kiểu tổng" (sum type / tagged union), tương tự union type trong TypeScript.</p>
+</section>
+
+<section class="doc" id="j-pattern" data-group="Ngôn ngữ">
+<h2>Pattern matching <span class="badge b-v11">Java 21</span></h2>
+<pre data-lang="java">
+// 1. instanceof pattern (Java 16): kiểm tra + ép kiểu trong một bước
+if (obj instanceof String s && !s.isBlank()) {
+    IO.println(s.length());
+}
+
+// 2. switch trên kiểu, có guard "when" (Java 21)
+String describe(Object o) {
+    return switch (o) {
+        case null -> "null";                              // switch có thể xử lý null
+        case Integer i when i > 100 -> "số lớn " + i;
+        case Integer i -> "số " + i;
+        case String s -> "chuỗi dài " + s.length();
+        case int[] arr -> "mảng " + arr.length;
+        default -> "khác";
+    };
+}
+
+// 3. record pattern: tách thành phần (Java 21), lồng nhau được
+String handle(PaymentEvent e) {
+    return switch (e) {                                   // không cần default: sealed đã đủ
+        case Charged(var id, Money(var amt, var cur)) -> "Thu " + amt + " " + cur + " cho " + id;
+        case Refunded(var id, var money, var reason) -> "Hoàn " + id + ": " + reason;
+        case Disputed(var id) -> "Tranh chấp " + id;
+    };
+}
+
+// 4. biến không tên _ (Java 22): bỏ qua phần không dùng
+case Refunded(var id, _, _) -> "Hoàn " + id;
+try { parse(x); } catch (NumberFormatException _) { return 0; }
+map.forEach((_, v) -> total += v);
+</pre>
+<div class="note v12"><span class="nt">Preview</span><p>Primitive patterns (<c>case int i when i &gt; 0</c> trên giá trị nguyên thủy, <c>instanceof byte b</c>) vẫn là preview tới JDK 27.</p></div>
+</section>
+
+<section class="doc" id="j-generics" data-group="Ngôn ngữ">
+<h2>Generics</h2>
+<p>Generics cho phép viết code dùng chung cho nhiều kiểu mà vẫn được kiểm tra lúc biên dịch.</p>
+<pre data-lang="java">
+// class generic
+public class Page<T> {
+    private final List<T> items;
+    private final long total;
+    public Page(List<T> items, long total) { this.items = List.copyOf(items); this.total = total; }
+    public <R> Page<R> map(Function<? super T, ? extends R> fn) {   // method generic
+        return new Page<>(items.stream().<R>map(fn).toList(), total);
+    }
+}
+
+// bounded type: T phải so sánh được
+public static <T extends Comparable<? super T>> T max(List<? extends T> list) {
+    T best = list.getFirst();
+    for (T x : list) if (x.compareTo(best) > 0) best = x;
+    return best;
+}
+</pre>
+<h3>Wildcard và quy tắc PECS</h3>
+<p><strong>P</strong>roducer <strong>E</strong>xtends, <strong>C</strong>onsumer <strong>S</strong>uper: tham số chỉ để <em>đọc</em> ra thì dùng <c>? extends T</c>; chỉ để <em>ghi</em> vào thì dùng <c>? super T</c>.</p>
+<pre data-lang="java">
+static void copy(List<? extends Number> src, List<? super Number> dst) {
+    for (Number n : src) dst.add(n);         // đọc từ src, ghi vào dst
+}
+copy(List.of(1, 2), new ArrayList<Object>()); // hợp lệ
+</pre>
+<div class="note warn"><span class="nt">Type erasure</span><p>Thông tin kiểu generic bị xóa sau biên dịch: không viết được <c>new T()</c>, <c>T.class</c>, <c>instanceof List&lt;String&gt;</c>. <c>List&lt;Integer&gt;</c> không phải lớp con của <c>List&lt;Number&gt;</c>. Cần kiểu lúc runtime thì truyền <c>Class&lt;T&gt;</c> vào.</p></div>
+</section>
+
+<section class="doc" id="j-exceptions" data-group="Ngôn ngữ">
+<h2>Exceptions</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Loại</th><th>Lớp cha</th><th>Bắt buộc xử lý?</th><th>Ví dụ</th></tr></thead>
+<tbody>
+<tr><td>Checked</td><td><c>Exception</c></td><td>Có: phải <c>catch</c> hoặc khai báo <c>throws</c></td><td><c>IOException</c>, <c>SQLException</c></td></tr>
+<tr><td>Unchecked</td><td><c>RuntimeException</c></td><td>Không</td><td><c>IllegalArgumentException</c>, <c>NullPointerException</c></td></tr>
+<tr><td>Error</td><td><c>Error</c></td><td>Không nên bắt</td><td><c>OutOfMemoryError</c>, <c>StackOverflowError</c></td></tr>
+</tbody></table></div>
+<pre data-lang="java">
+// try-with-resources: tự gọi close() theo thứ tự ngược, kể cả khi có lỗi
+try (var in = Files.newBufferedReader(path);
+     var out = Files.newBufferedWriter(target)) {
+    in.transferTo(out);
+} catch (NoSuchFileException e) {
+    log.warn("Không thấy file {}", e.getFile());
+} catch (IOException e) {
+    throw new UncheckedIOException("Copy thất bại: " + path, e);   // giữ cause
+} finally {
+    metrics.increment("copy");
+}
+
+// exception nghiệp vụ riêng
+public class QuotaExceededException extends RuntimeException {
+    private final String shop;
+    public QuotaExceededException(String shop, int limit) {
+        super("Shop " + shop + " vượt hạn mức " + limit);
+        this.shop = shop;
+    }
+    public String shop() { return shop; }
+}
+</pre>
+<ul>
+  <li>Chỉ bắt exception khi xử lý được nó. Không <c>catch (Exception e) {'{'} {'}'}</c> rồi bỏ qua.</li>
+  <li>Bọc lại thì luôn truyền <c>cause</c> để giữ stack trace gốc.</li>
+  <li>Dùng exception cho trường hợp bất thường, không dùng để điều khiển luồng thông thường.</li>
+</ul>
+</section>
+
+<section class="doc" id="j-lambda" data-group="Ngôn ngữ">
+<h2>Lambda và functional interface</h2>
+<p>Lambda là cách viết ngắn cho một <strong>functional interface</strong> (interface có đúng một method abstract).</p>
+<pre data-lang="java">
+Comparator<Order> byTotal = (a, b) -> a.total().compareTo(b.total());
+Runnable task = () -> IO.println("chạy");
+Function<String, Integer> len = s -> s.length();
+
+// method reference: 4 dạng
+Function<String, Integer> f1 = String::length;          // method instance của tham số
+Supplier<List<String>> f2 = ArrayList::new;              // constructor
+Function<String, Integer> f3 = Integer::parseInt;        // static method
+Consumer<String> f4 = log::info;                          // method của object cụ thể
+
+orders.sort(Comparator.comparing(Order::shop).thenComparing(Order::createdAt).reversed());
+</pre>
+<div class="table-wrap"><table>
+<thead><tr><th>Interface (java.util.function)</th><th>Chữ ký</th><th>Dùng cho</th></tr></thead>
+<tbody>
+<tr><td><c>Supplier&lt;T&gt;</c></td><td><c>() -&gt; T</c></td><td>Tạo giá trị lười</td></tr>
+<tr><td><c>Consumer&lt;T&gt;</c></td><td><c>T -&gt; void</c></td><td>Side effect</td></tr>
+<tr><td><c>Function&lt;T,R&gt;</c></td><td><c>T -&gt; R</c></td><td>Biến đổi</td></tr>
+<tr><td><c>Predicate&lt;T&gt;</c></td><td><c>T -&gt; boolean</c></td><td>Lọc, điều kiện</td></tr>
+<tr><td><c>BiFunction&lt;T,U,R&gt;</c></td><td><c>(T, U) -&gt; R</c></td><td>Hai tham số</td></tr>
+<tr><td><c>UnaryOperator&lt;T&gt;</c>, <c>BinaryOperator&lt;T&gt;</c></td><td><c>T -&gt; T</c>, <c>(T, T) -&gt; T</c></td><td>Biến đổi cùng kiểu, gộp</td></tr>
+<tr><td><c>IntFunction</c>, <c>ToLongFunction</c>…</td><td>bản cho kiểu nguyên thủy</td><td>Tránh boxing</td></tr>
+</tbody></table></div>
+<p>Biến bên ngoài dùng trong lambda phải là <em>effectively final</em> (không bị gán lại sau khi khai báo).</p>
+</section>
+
+<section class="doc" id="j-optional" data-group="Ngôn ngữ">
+<h2>Optional</h2>
+<p><c>Optional&lt;T&gt;</c> biểu diễn "có thể không có giá trị" ở <strong>kiểu trả về</strong>, buộc bên gọi xử lý trường hợp rỗng thay vì quên kiểm tra null.</p>
+<pre data-lang="java">
+Optional<Shop> findShop(String domain) { return Optional.ofNullable(cache.get(domain)); }
+
+String plan = findShop("demo.myshopify.com")
+    .filter(Shop::active)
+    .map(Shop::plan)
+    .orElse("free");
+
+Shop shop = findShop(d).orElseThrow(() -> new ShopNotFoundException(d));
+findShop(d).ifPresentOrElse(this::sync, () -> log.warn("missing {}", d));
+</pre>
+<div class="note warn"><span class="nt">Không nên</span><p>Dùng <c>Optional</c> làm field, tham số method hay phần tử collection; gọi <c>get()</c> không kiểm tra; trả về <c>Optional</c> chứa collection (trả collection rỗng là đủ).</p></div>
+</section>
+
+<section class="doc" id="j-annotations" data-group="Ngôn ngữ">
+<h2>Annotations và reflection</h2>
+<p>Annotation gắn metadata lên code. Framework (Spring, JUnit, Jackson, Hibernate) đọc annotation qua reflection để quyết định hành vi, rất giống decorator + <c>Reflector</c> trong NestJS.</p>
+<pre data-lang="java">
+@Retention(RetentionPolicy.RUNTIME)       // giữ tới runtime để reflection đọc được
+@Target(ElementType.METHOD)
+public @interface Audited {
+    String action();
+}
+
+public class RuleService {
+    @Audited(action = "rule.delete")
+    public void delete(String id) { }
+}
+
+// đọc lúc runtime
+for (Method m : RuleService.class.getDeclaredMethods()) {
+    Audited a = m.getAnnotation(Audited.class);
+    if (a != null) IO.println(m.getName() + " → " + a.action());
+}
+</pre>
+<p>Annotation có sẵn hay dùng: <c>@Override</c>, <c>@Deprecated(since, forRemoval)</c>, <c>@FunctionalInterface</c>, <c>@SuppressWarnings</c>, <c>@SafeVarargs</c>.</p>
+</section>
+
+<section class="doc" id="j-modules" data-group="Ngôn ngữ">
+<h2>Package và module</h2>
+<p><strong>Package</strong> nhóm class theo namespace (<c>com.example.billing</c>), tên thư mục phải khớp tên package. <strong>Module</strong> (JDK 9, JPMS) là lớp đóng gói trên package: khai báo rõ module cần gì và công khai package nào.</p>
+<pre data-lang="java" data-file="src/main/java/module-info.java">
+module com.example.fraud {
+    requires java.net.http;                       // phụ thuộc module khác
+    requires transitive com.example.shared;       // ai dùng module này cũng có shared
+    exports com.example.fraud.api;                // chỉ package này lộ ra ngoài
+    opens com.example.fraud.dto to com.fasterxml.jackson.databind;  // cho phép reflection
+    provides com.example.spi.RuleEngine with com.example.fraud.DefaultRuleEngine;
+    uses com.example.spi.Notifier;                // ServiceLoader
+}
+</pre>
+<p>Phần lớn ứng dụng Spring vẫn chạy trên classpath, không khai báo module. Module hữu ích khi viết thư viện cần ẩn chi tiết nội bộ, hoặc khi dùng <c>jlink</c> tạo runtime nhỏ.</p>
+<p><span class="badge b-v11">Java 25</span> <c>import module java.base;</c> import mọi package mà module export, tiện cho script và chương trình ngắn.</p>
+</section>

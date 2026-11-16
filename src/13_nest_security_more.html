@@ -1,0 +1,370 @@
+<section class="doc" id="security" data-group="Bảo mật">
+<h2>Xác thực (Authentication) với JWT</h2>
+<p>Luồng chuẩn trong Nest 11: endpoint đăng nhập trả JWT, một guard global kiểm tra token ở mọi route, decorator <c>@Public()</c> mở các route không cần đăng nhập.</p>
+<pre data-lang="bash">npm i @nestjs/jwt</pre>
+<pre data-lang="ts" data-file="src/auth/auth.module.ts">
+@Module({
+  imports: [
+    UsersModule,
+    JwtModule.registerAsync({
+      global: true,
+      inject: [ConfigService],
+      useFactory: (c: ConfigService) => ({
+        secret: c.getOrThrow('JWT_SECRET'),
+        signOptions: { expiresIn: '15m' },
+      }),
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [AuthService, { provide: APP_GUARD, useClass: AuthGuard }],
+})
+export class AuthModule {}
+</pre>
+<pre data-lang="ts" data-file="src/auth/auth.service.ts">
+@Injectable()
+export class AuthService {
+  constructor(private readonly users: UsersService, private readonly jwt: JwtService) {}
+
+  async signIn(email: string, password: string) {
+    const user = await this.users.findByEmail(email);
+    if (!user || !(await argon2.verify(user.passwordHash, password))) {
+      throw new UnauthorizedException('Sai email hoặc mật khẩu');
+    }
+    const payload = { sub: user.id, roles: user.roles };
+    return { accessToken: await this.jwt.signAsync(payload) };
+  }
+}
+</pre>
+<pre data-lang="ts" data-file="src/auth/auth.guard.ts">
+@Injectable()
+export class AuthGuard implements CanActivate {
+  constructor(private readonly jwt: JwtService, private readonly reflector: Reflector) {}
+
+  async canActivate(ctx: ExecutionContext) {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [ctx.getHandler(), ctx.getClass()]);
+    if (isPublic) return true;
+
+    const req = ctx.switchToHttp().getRequest();
+    const [type, token] = req.headers.authorization?.split(' ') ?? [];
+    if (type !== 'Bearer' || !token) throw new UnauthorizedException();
+
+    try {
+      req.user = await this.jwt.verifyAsync(token);   // gắn user vào request cho guard/handler sau
+    } catch {
+      throw new UnauthorizedException();
+    }
+    return true;
+  }
+}
+</pre>
+<pre data-lang="ts" data-file="src/auth/auth.controller.ts">
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly auth: AuthService) {}
+
+  @Public()
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  login(@Body() dto: LoginDto) {
+    return this.auth.signIn(dto.email, dto.password);
+  }
+
+  @Get('profile')
+  profile(@Req() req) {            // route mặc định đã được bảo vệ bởi APP_GUARD
+    return req.user;
+  }
+}
+</pre>
+<p><strong>Passport</strong> (<c>@nestjs/passport</c>) là lựa chọn khi cần nhiều chiến lược (local, JWT, OAuth Google/GitHub…): viết class kế thừa <c>PassportStrategy(Strategy)</c> với method <c>validate()</c>, rồi dùng <c>AuthGuard('jwt')</c>.</p>
+<div class="note v12"><span class="nt">v12: @nestjs/authentication</span><p>Nest 12 có package xác thực chính thức: <c>AuthenticationModule.forRoot()</c> đăng ký guard global, session cookie <c>__Host-sid</c>, access/refresh token xoay vòng (<c>TokenService</c>), <c>PasswordHasher</c> (scrypt), <c>@Public()</c>, <c>@CurrentUser()</c>, <c>@Authenticate({'{'} mfa {'}'})</c>.</p></div>
+
+<h3>Phân quyền (Authorization)</h3>
+<p><strong>RBAC</strong>: decorator <c>@Roles()</c> + <c>RolesGuard</c> như ở mục <a href="#guards">Guards</a>. Với quyền theo dữ liệu ("chỉ sửa bài của chính mình"), kiểm tra trong service vì guard chưa có bản ghi. Thư viện <strong>CASL</strong> <span class="badge b-com">cộng đồng</span> giúp định nghĩa ability dạng <c>can('update', 'Article', {'{'} authorId: user.id {'}'})</c>.</p>
+<pre data-lang="ts">
+@Injectable()
+export class ArticlesService {
+  async update(user: AuthUser, id: string, dto: UpdateArticleDto) {
+    const article = await this.repo.findById(id);
+    if (!article) throw new NotFoundException();
+    if (article.authorId !== user.sub && !user.roles.includes('admin')) {
+      throw new ForbiddenException();
+    }
+    return this.repo.update(id, dto);
+  }
+}
+</pre>
+<div class="note v12"><span class="nt">v12: @nestjs/authorization</span><p>Phân quyền theo policy class: <c>@Policy() class ProductPolicy {'{'} update(user, product) {'{'} … {'}'} {'}'}</c>, gắn bằng <c>@Can(ProductPolicy, 'update')</c>; mặc định từ chối mọi handler không khai báo.</p></div>
+
+<h3>Các lớp bảo vệ khác</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Chủ đề</th><th>Nest 11</th><th>Ghi chú</th></tr></thead>
+<tbody>
+<tr><td>Security headers</td><td><c>app.use(helmet())</c></td><td><span class="badge b-v12">v12.1</span> <c>app.useSecurityHeaders()</c>. Swagger UI cần nới CSP.</td></tr>
+<tr><td>CORS</td><td><c>app.enableCors({'{'} origin, credentials {'}'})</c></td><td>Fastify mặc định chỉ cho GET/HEAD/POST, phải khai báo <c>methods</c>.</td></tr>
+<tr><td>CSRF</td><td><c>csrf-csrf</c> (double submit cookie)</td><td><span class="badge b-v12">v12.1</span> <c>app.enableCsrfProtection()</c> dựa trên Sec-Fetch-Site/Origin.</td></tr>
+<tr><td>Rate limit</td><td><c>@nestjs/throttler</c></td><td>Xem ví dụ dưới.</td></tr>
+<tr><td>Hash mật khẩu</td><td><c>argon2</c> hoặc <c>bcrypt</c></td><td>bcrypt chỉ đọc 72 byte đầu.</td></tr>
+<tr><td>Mã hóa dữ liệu</td><td><c>node:crypto</c></td><td>Dùng <c>aes-256-gcm</c> (có tag xác thực) thay vì CTR.</td></tr>
+</tbody></table></div>
+<pre data-lang="ts">
+ThrottlerModule.forRoot({
+  throttlers: [
+    { name: 'short', ttl: 1_000, limit: 5 },
+    { name: 'long', ttl: 60_000, limit: 100 },
+  ],
+});
+// providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }]
+
+@SkipThrottle()                                         // bỏ qua cả controller
+@Controller('webhooks') export class WebhooksController {}
+
+@Throttle({ short: { limit: 1, ttl: 10_000 } })          // siết riêng route đăng nhập
+@Post('login') login() {}
+</pre>
+<p>Sau reverse proxy phải bật <c>app.set('trust proxy', 'loopback')</c> (Express), nếu không mọi client bị gộp chung một IP. Chạy nhiều instance thì cần storage Redis cho throttler.</p>
+</section>
+
+<section class="doc" id="websockets" data-group="Giao tiếp">
+<h2>WebSockets</h2>
+<pre data-lang="bash">npm i @nestjs/websockets @nestjs/platform-socket.io</pre>
+<pre data-lang="ts">
+@WebSocketGateway({ namespace: '/live', cors: { origin: '*' } })
+export class LiveGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer() server: Namespace;
+
+  handleConnection(client: Socket) {
+    const shop = client.handshake.auth?.shop;
+    client.join(`shop:${shop}`);
+  }
+  handleDisconnect(client: Socket) {}
+
+  @SubscribeMessage('ping')
+  ping(@MessageBody() data: { t: number }, @ConnectedSocket() client: Socket) {
+    return { event: 'pong', data: { t: data.t } };   // trả WsResponse → gửi event 'pong'
+  }
+
+  pushVisitor(shop: string, v: Visitor) {           // gọi từ service khác
+    this.server.to(`shop:${shop}`).emit('visitor', v);
+  }
+}
+</pre>
+<ul>
+  <li>Lỗi ném bằng <c>WsException</c>; client nhận event <c>exception</c>. Filter global HTTP không áp dụng, dùng <c>@UseFilters()</c> trên gateway.</li>
+  <li><c>ValidationPipe</c> ném <c>BadRequestException</c>, phải đặt <c>exceptionFactory: (e) =&gt; new WsException(e)</c>.</li>
+  <li><c>handleConnection</c> không chặn được kết nối; xác thực bằng guard hoặc middleware <c>server.use()</c> của socket.io.</li>
+  <li>Chạy nhiều instance: custom <c>IoAdapter</c> dùng <c>@socket.io/redis-adapter</c> + sticky session.</li>
+</ul>
+</section>
+
+<section class="doc" id="microservices" data-group="Giao tiếp">
+<h2>Microservices <span class="badge b-pkg">@nestjs/microservices</span></h2>
+<p>Cùng mô hình controller/DI nhưng thay HTTP bằng transport: TCP, Redis, RabbitMQ (RMQ), Kafka, NATS, gRPC, MQTT hoặc transport tự viết.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Decorator</th><th>Kiểu giao tiếp</th><th>Phía gửi</th></tr></thead>
+<tbody>
+<tr><td><c>@MessagePattern()</c></td><td>Request-response, có giá trị trả về</td><td><c>client.send()</c> trả Observable "lạnh", phải subscribe/await</td></tr>
+<tr><td><c>@EventPattern()</c></td><td>Fire-and-forget, nhiều handler chạy song song</td><td><c>client.emit()</c></td></tr>
+</tbody></table></div>
+<pre data-lang="ts" data-file="worker/main.ts">
+const app = await NestFactory.createMicroservice<MicroserviceOptions>(WorkerModule, {
+  transport: Transport.RMQ,
+  options: {
+    urls: [process.env.AMQP_URL!],
+    queue: 'orders',
+    noAck: false,                         // ack thủ công
+    prefetchCount: 20,
+    queueOptions: { durable: true },
+  },
+});
+await app.listen();
+</pre>
+<pre data-lang="ts">
+@Controller()
+export class OrdersConsumer {
+  @EventPattern('order.created')
+  async onCreated(@Payload() data: OrderCreated, @Ctx() ctx: RmqContext) {
+    const channel = ctx.getChannelRef();
+    const msg = ctx.getMessage();
+    try {
+      await this.service.process(data);
+      channel.ack(msg);
+    } catch (e) {
+      channel.nack(msg, false, false);     // không requeue → về dead-letter queue
+    }
+  }
+
+  @MessagePattern({ cmd: 'risk.score' })
+  score(@Payload() data: { orderId: string }) {
+    return this.risk.score(data.orderId);   // giá trị trả về là response
+  }
+}
+
+// phía gọi
+@Module({
+  imports: [ClientsModule.register([{ name: 'WORKER', transport: Transport.RMQ, options: { urls: [url], queue: 'orders' } }])],
+})
+export class ApiModule {}
+
+@Injectable()
+export class OrdersPublisher {
+  constructor(@Inject('WORKER') private readonly client: ClientProxy) {}
+  publish(o: OrderCreated) { return this.client.emit('order.created', o); }
+  score(id: string) { return firstValueFrom(this.client.send({ cmd: 'risk.score' }, { orderId: id }).pipe(timeout(5000))); }
+}
+</pre>
+<p><strong>Hybrid app</strong> (vừa HTTP vừa nghe queue): <c>app.connectMicroservice({'{'} transport, options {'}'}, {'{'} inheritAppConfig: true {'}'})</c>, rồi <c>await app.startAllMicroservices()</c> và <c>app.listen()</c>. Lỗi trong handler RPC ném bằng <c>RpcException</c>.</p>
+<div class="note proj"><span class="nt">Dự án của bạn</span><p>Service <c>api/</c> dùng <c>@golevelup/nestjs-rabbitmq</c> <span class="badge b-com">cộng đồng</span> thay cho transport RMQ có sẵn, vì cần exchange/routing key kiểu topic linh hoạt hơn: <c>@RabbitSubscribe({'{'} exchange, routingKey, queue {'}'})</c> và <c>AmqpConnection.publish(exchange, routingKey, msg)</c>. Kiểu trả về của handler (<c>new Nack(requeue)</c>) quyết định ack/nack.</p></div>
+</section>
+
+<section class="doc" id="graphql" data-group="Giao tiếp">
+<h2>GraphQL <span class="badge b-pkg">@nestjs/graphql</span></h2>
+<p>Hai cách tiếp cận: <strong>code-first</strong> (viết class TypeScript, Nest sinh schema) và <strong>schema-first</strong> (viết SDL, Nest sinh type). Code-first phổ biến hơn trong dự án TypeScript.</p>
+<pre data-lang="ts">
+GraphQLModule.forRoot<ApolloDriverConfig>({
+  driver: ApolloDriver,
+  autoSchemaFile: true,       // sinh schema trong bộ nhớ (hoặc đường dẫn file)
+  sortSchema: true,
+});
+
+@ObjectType()
+export class Shop {
+  @Field(() => ID) id: string;
+  @Field() domain: string;
+  @Field(() => Int, { nullable: true }) plan?: number;
+}
+
+@InputType()
+export class UpdateShopInput {
+  @Field() @IsString() domain: string;
+}
+
+@Resolver(() => Shop)
+export class ShopResolver {
+  constructor(private readonly shops: ShopsService) {}
+
+  @Query(() => Shop, { name: 'shop' })
+  getShop(@Args('id', { type: () => ID }) id: string) { return this.shops.find(id); }
+
+  @Mutation(() => Shop)
+  updateShop(@Args('input') input: UpdateShopInput) { return this.shops.update(input); }
+
+  @ResolveField(() => [Rule])
+  rules(@Parent() shop: Shop) { return this.rules.byShop(shop.id); }   // cẩn thận N+1 → dùng DataLoader
+}
+</pre>
+<p>Guard/interceptor dùng <c>GqlExecutionContext.create(ctx).getContext().req</c>. Subscriptions dùng <c>graphql-ws</c>; <c>PubSub</c> có sẵn chỉ chạy trong bộ nhớ, production dùng Redis PubSub. Federation có <c>ApolloFederationDriver</c> / <c>ApolloGatewayDriver</c>.</p>
+</section>
+
+<section class="doc" id="openapi" data-group="Công cụ">
+<h2>OpenAPI (Swagger) <span class="badge b-pkg">@nestjs/swagger</span></h2>
+<pre data-lang="ts" data-file="src/main.ts">
+const config = new DocumentBuilder()
+  .setTitle('Fraud API')
+  .setVersion('1.0')
+  .addBearerAuth()
+  .build();
+SwaggerModule.setup('docs', app, () => SwaggerModule.createDocument(app, config));
+// UI: /docs  ·  JSON: /docs-json
+</pre>
+<pre data-lang="ts">
+export class CreateRuleDto {
+  @ApiProperty({ example: 'Block VN proxies' }) name: string;
+  @ApiProperty({ enum: RuleAction, enumName: 'RuleAction' }) action: RuleAction;
+  @ApiPropertyOptional() ip?: string;
+}
+
+@ApiTags('rules')
+@ApiBearerAuth()
+@Controller('rules')
+export class RulesController {
+  @ApiOkResponse({ type: [RuleDto] })
+  @ApiQuery({ name: 'status', enum: RuleStatus, required: false })
+  @Get() list() {}
+}
+</pre>
+<p>Bật CLI plugin để khỏi viết <c>@ApiProperty</c> cho từng field: thêm <c>"plugins": ["@nestjs/swagger"]</c> vào <c>compilerOptions</c> của <c>nest-cli.json</c> (plugin đọc kiểu TS và cả decorator class-validator; bật <c>introspectComments</c> để lấy mô tả từ JSDoc).</p>
+</section>
+
+<section class="doc" id="cqrs" data-group="Công cụ">
+<h2>CQRS <span class="badge b-pkg">@nestjs/cqrs</span></h2>
+<p>Tách thao tác ghi (Command) và đọc (Query) thành các handler riêng, giao tiếp qua bus. Hợp với domain phức tạp có luồng đọc/ghi khác hẳn nhau; với CRUD thông thường thì là thừa.</p>
+<pre data-lang="ts">
+export class BlockIpCommand extends Command<{ ruleId: string }> {
+  constructor(public readonly shop: string, public readonly ip: string) { super(); }
+}
+
+@CommandHandler(BlockIpCommand)
+export class BlockIpHandler implements ICommandHandler<BlockIpCommand> {
+  constructor(private readonly repo: RulesRepository, private readonly publisher: EventPublisher) {}
+
+  async execute({ shop, ip }: BlockIpCommand) {
+    const rule = this.publisher.mergeObjectContext(await this.repo.createBlock(shop, ip));
+    rule.markCreated();          // AggregateRoot.apply(new IpBlockedEvent(...))
+    rule.commit();               // phát event ra EventBus
+    return { ruleId: rule.id };
+  }
+}
+
+@EventsHandler(IpBlockedEvent)
+export class SyncTrackerOnBlock implements IEventHandler<IpBlockedEvent> {
+  handle(e: IpBlockedEvent) { /* đẩy sang tracker */ }
+}
+
+// controller
+const { ruleId } = await this.commandBus.execute(new BlockIpCommand(shop, ip));
+const rules = await this.queryBus.execute(new ListRulesQuery(shop));
+</pre>
+<p><strong>Saga</strong>: <c>@Saga() onBlocked = (events$) =&gt; events$.pipe(ofType(IpBlockedEvent), map((e) =&gt; new NotifyMerchantCommand(e.shop)))</c> để nối event thành command tiếp theo (chạy trong bộ nhớ).</p>
+</section>
+
+<section class="doc" id="tooling" data-group="Công cụ">
+<h2>Health check, CLI và công cụ khác</h2>
+<h3>Health checks <span class="badge b-pkg">@nestjs/terminus</span></h3>
+<pre data-lang="ts">
+@Controller('health')
+export class HealthController {
+  constructor(
+    private readonly health: HealthCheckService,
+    private readonly mongo: MongooseHealthIndicator,
+    private readonly memory: MemoryHealthIndicator,
+  ) {}
+
+  @Public()
+  @Get()
+  @HealthCheck()
+  check() {
+    return this.health.check([
+      () => this.mongo.pingCheck('mongodb'),
+      () => this.memory.checkHeap('heap', 512 * 1024 * 1024),
+    ]);
+  }
+}
+</pre>
+<h3>Standalone application</h3>
+<p>Dùng DI của Nest mà không mở HTTP server, cho script migration, CLI, worker:</p>
+<pre data-lang="ts">
+const app = await NestFactory.createApplicationContext(AppModule);
+const service = app.get(BackfillService);
+await service.run();
+await app.close();
+</pre>
+<p>Thư viện <c>nest-commander</c> <span class="badge b-com">cộng đồng</span> và <c>nestjs-console</c> giúp viết lệnh CLI có tham số trên nền standalone app.</p>
+
+<h3>Nest CLI</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Lệnh</th><th>Tác dụng</th></tr></thead>
+<tbody>
+<tr><td><c>nest g resource orders</c></td><td>Sinh module + controller + service + DTO + entity (chọn REST/GraphQL/microservice/WS)</td></tr>
+<tr><td><c>nest g mo|co|s|gu|itc|pi|f|mi|d orders</c></td><td>Sinh module, controller, service, guard, interceptor, pipe, filter, middleware, decorator</td></tr>
+<tr><td><c>nest g app worker</c> / <c>nest g lib shared</c></td><td>Chuyển sang monorepo, thêm app/thư viện (<c>apps/</c>, <c>libs/</c>)</td></tr>
+<tr><td><c>nest build -b swc</c></td><td>Build bằng SWC, nhanh hơn tsc khoảng 20 lần (thêm <c>--type-check</c> nếu cần)</td></tr>
+<tr><td><c>nest start --watch --debug</c></td><td>Chạy dev có watch và debugger</td></tr>
+<tr><td><c>nest info</c></td><td>In phiên bản các package Nest</td></tr>
+</tbody></table></div>
+<p>Cờ hữu ích: <c>--flat</c> (không tạo thư mục con), <c>--no-spec</c> (không sinh file test), <c>--dry-run</c> (xem trước).</p>
+<h3>REPL và Devtools</h3>
+<ul>
+  <li><strong>REPL</strong>: tạo <c>src/repl.ts</c> gọi <c>await repl(AppModule)</c>, chạy <c>npm run start -- --entryFile repl</c>, rồi gọi thử service: <c>await get(CatsService).findAll()</c>.</li>
+  <li><strong>Devtools</strong>: <c>NestFactory.create(AppModule, {'{'} snapshot: true {'}'})</c> + <c>DevtoolsModule.register({'{'} http: true {'}'})</c> để xem đồ thị module, route, và chẩn đoán lỗi resolve dependency.</li>
+</ul>
+</section>

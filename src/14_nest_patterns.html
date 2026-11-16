@@ -1,0 +1,552 @@
+<section class="doc" id="patterns" data-group="Patterns">
+<h2>Tổng quan các pattern</h2>
+<p>Docs chính thức dạy từng viên gạch; phần này ghép chúng lại thành các pattern hay gặp trong dự án NestJS thực tế, tổng hợp từ docs, các repo tham khảo phổ biến (Domain-Driven Hexagon, nestjs-cls) và kinh nghiệm cộng đồng. Không phải dự án nào cũng cần hết: chọn pattern theo vấn đề bạn đang gặp.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Vấn đề</th><th>Pattern</th></tr></thead>
+<tbody>
+<tr><td>Code bắt đầu rối, không biết đặt logic ở đâu</td><td><a href="#p-layered">Layered module</a>, <a href="#p-repository">Repository</a></td></tr>
+<tr><td>Muốn đổi DB/SDK/nhà cung cấp mà không sửa business logic</td><td><a href="#p-hexagonal">Ports &amp; Adapters</a></td></tr>
+<tr><td>Response và lỗi mỗi chỗ một kiểu</td><td><a href="#p-envelope">Envelope + pagination</a>, <a href="#p-errors">Domain errors</a></td></tr>
+<tr><td>Nhiều <c>if/switch</c> theo loại (kênh gửi, loại rule)</td><td><a href="#p-strategy">Strategy registry</a></td></tr>
+<tr><td>Truyền shopId/requestId qua mọi hàm</td><td><a href="#p-cls">Request context (CLS)</a></td></tr>
+<tr><td>Nhiều thao tác DB phải cùng thành công</td><td><a href="#p-transaction">Unit of Work / Transactional</a></td></tr>
+<tr><td>Ghi DB xong publish message thì mất message</td><td><a href="#p-outbox">Transactional outbox</a></td></tr>
+<tr><td>Client retry làm tạo đơn hai lần, consumer nhận trùng message</td><td><a href="#p-idempotency">Idempotency</a></td></tr>
+<tr><td>Cron chạy trùng trên nhiều pod</td><td><a href="#p-lock">Distributed lock</a></td></tr>
+<tr><td>Module gọi chéo lung tung, sợ đụng vào</td><td><a href="#p-modular">Modular monolith</a></td></tr>
+<tr><td>Deploy làm rơi request, mất message đang xử lý</td><td><a href="#p-shutdown">Graceful shutdown</a></td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="p-layered" data-group="Patterns">
+<h2>Layered feature module</h2>
+<p>Mỗi tính năng là một module, bên trong chia ba tầng với trách nhiệm rõ ràng. Đây là điểm xuất phát mặc định cho hầu hết dự án Nest.</p>
+<pre data-lang="text">
+src/
+├── common/                 # filter, interceptor, pipe, decorator dùng chung
+├── config/                 # registerAs namespaces + validate env
+├── orders/
+│   ├── orders.module.ts
+│   ├── orders.controller.ts   # HTTP: nhận DTO, gọi service, không chứa logic
+│   ├── orders.service.ts      # business logic, không biết HTTP
+│   ├── orders.repository.ts   # truy cập DB, không chứa logic nghiệp vụ
+│   ├── dto/                   # input (class-validator) và output
+│   └── schemas/               # Mongoose schema / entity
+└── app.module.ts
+</pre>
+<div class="grid2">
+  <div class="card"><h5>Controller</h5><p>Parse input, gọi đúng một method service, trả kết quả. Không gọi trực tiếp model DB.</p></div>
+  <div class="card"><h5>Service</h5><p>Quy tắc nghiệp vụ, điều phối repository và client ngoài. Ném exception nghiệp vụ.</p></div>
+  <div class="card"><h5>Repository</h5><p>Query, index, projection, transaction. Trả object thuần (<c>lean()</c>).</p></div>
+</div>
+<div class="note tip"><span class="nt">Đừng làm quá</span><p>Thêm tầng thì thêm chi phí đọc code. Nếu service chỉ chuyển tiếp nguyên xi sang repository cho một query đơn giản, chấp nhận gộp. Tầng chỉ đáng giá khi nó tách được một lý do thay đổi riêng.</p></div>
+</section>
+
+<section class="doc" id="p-repository" data-group="Patterns">
+<h2>Repository với abstract class làm token</h2>
+<p>TypeScript interface không tồn tại lúc runtime nên không làm token DI được. Abstract class vừa là "hợp đồng" vừa là token, không cần <c>@Inject()</c>.</p>
+<pre data-lang="ts">
+// hợp đồng
+export abstract class RulesRepository {
+  abstract findActive(shop: string): Promise<Rule[]>;
+  abstract create(shop: string, data: NewRule): Promise<Rule>;
+}
+
+// cài đặt Mongo
+@Injectable()
+export class MongoRulesRepository extends RulesRepository {
+  constructor(@InjectModel(RuleDoc.name) private readonly model: Model<RuleDoc>) { super(); }
+
+  findActive(shop: string) {
+    return this.model.find({ shop, enabled: true }).sort({ priority: -1 }).lean<Rule[]>();
+  }
+  async create(shop: string, data: NewRule) {
+    return (await this.model.create({ shop, ...data })).toObject<Rule>();
+  }
+}
+
+// binding
+@Module({
+  providers: [RulesService, { provide: RulesRepository, useClass: MongoRulesRepository }],
+})
+export class RulesModule {}
+
+// service chỉ biết hợp đồng
+@Injectable()
+export class RulesService {
+  constructor(private readonly repo: RulesRepository) {}
+}
+
+// test: thay bằng bản in-memory, không cần mock Mongoose
+{ provide: RulesRepository, useClass: InMemoryRulesRepository }
+</pre>
+</section>
+
+<section class="doc" id="p-hexagonal" data-group="Patterns">
+<h2>Ports &amp; Adapters (Hexagonal)</h2>
+<p>Mở rộng ý tưởng repository cho mọi phụ thuộc bên ngoài: DB, API IP lookup, gửi mail, message broker. Lõi nghiệp vụ chỉ phụ thuộc vào <strong>port</strong> (abstract class); <strong>adapter</strong> ở tầng infrastructure cài đặt port. Phụ thuộc luôn hướng vào trong.</p>
+<pre data-lang="text">
+src/risk/
+├── domain/             # entity, value object, domain error — không import @nestjs, mongoose
+├── application/
+│   ├── ports/          # IpLookupPort, RiskEventsPort (abstract class)
+│   └── score-order.use-case.ts
+├── infrastructure/
+│   ├── ipinfo.adapter.ts       # implements IpLookupPort bằng HTTP
+│   └── rabbit-events.adapter.ts
+├── interface/
+│   └── risk.controller.ts
+└── risk.module.ts      # nơi duy nhất nối port với adapter
+</pre>
+<pre data-lang="ts">
+export abstract class IpLookupPort {
+  abstract lookup(ip: string): Promise<{ country: string; isProxy: boolean }>;
+}
+
+@Injectable()
+export class ScoreOrderUseCase {
+  constructor(private readonly ip: IpLookupPort, private readonly events: RiskEventsPort) {}
+
+  async execute(order: OrderInput) {
+    const info = await this.ip.lookup(order.ip);
+    const score = info.isProxy ? 80 : 10;            // logic thuần, test không cần mạng
+    await this.events.scored(order.id, score);
+    return score;
+  }
+}
+
+@Module({
+  providers: [
+    ScoreOrderUseCase,
+    { provide: IpLookupPort, useClass: IpInfoAdapter },
+    { provide: RiskEventsPort, useClass: RabbitRiskEventsAdapter },
+  ],
+})
+export class RiskModule {}
+</pre>
+<div class="note tip"><span class="nt">Khi nào đáng dùng</span><p>Domain phức tạp, tuổi thọ dài, có khả năng đổi nhà cung cấp. Với service CRUD nhỏ, hexagonal tạo nhiều file mà ít giá trị.</p></div>
+</section>
+
+<section class="doc" id="p-envelope" data-group="Patterns">
+<h2>Response envelope và pagination</h2>
+<p>Thống nhất hình dạng response cho client: interceptor bọc kết quả thành công, filter bọc lỗi (xem <a href="#exception-filters">Exception filters</a>), DTO phân trang dùng lại ở mọi danh sách.</p>
+<pre data-lang="ts">
+export class PageQuery {
+  @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 20;
+  get skip() { return (this.page - 1) * this.limit; }
+}
+
+export class Paginated<T> {
+  constructor(public items: T[], public total: number, public page: number, public limit: number) {}
+}
+
+// repository
+async list(shop: string, q: PageQuery) {
+  const [items, total] = await Promise.all([
+    this.model.find({ shop }).skip(q.skip).limit(q.limit).lean(),
+    this.model.countDocuments({ shop }),
+  ]);
+  return new Paginated(items, total, q.page, q.limit);
+}
+
+// interceptor: tách meta phân trang ra khỏi data
+@Injectable()
+export class EnvelopeInterceptor implements NestInterceptor {
+  intercept(_: ExecutionContext, next: CallHandler) {
+    return next.handle().pipe(map((res) =>
+      res instanceof Paginated
+        ? { success: true, data: res.items, meta: { total: res.total, page: res.page, limit: res.limit } }
+        : { success: true, data: res },
+    ));
+  }
+}
+</pre>
+</section>
+
+<section class="doc" id="p-errors" data-group="Patterns">
+<h2>Domain errors tách khỏi HTTP</h2>
+<p>Service ném lỗi nghiệp vụ không biết gì về HTTP; một filter duy nhất ánh xạ sang status code. Nhờ vậy cùng service dùng được trong HTTP controller, RabbitMQ consumer và cron mà không phải ném <c>NotFoundException</c> trong worker.</p>
+<pre data-lang="ts">
+export abstract class DomainError extends Error {
+  abstract readonly code: string;
+  constructor(message: string, readonly details?: Record<string, unknown>) { super(message); }
+}
+export class QuotaExceededError extends DomainError { readonly code = 'QUOTA_EXCEEDED'; }
+export class RuleNotFoundError extends DomainError { readonly code = 'RULE_NOT_FOUND'; }
+
+const STATUS: Record<string, number> = { QUOTA_EXCEEDED: 429, RULE_NOT_FOUND: 404 };
+
+@Catch(DomainError)
+export class DomainErrorFilter implements ExceptionFilter {
+  constructor(private readonly adapterHost: HttpAdapterHost) {}
+
+  catch(e: DomainError, host: ArgumentsHost) {
+    if (host.getType() !== 'http') throw e;                   // RPC/WS tự xử lý
+    const status = STATUS[e.code] ?? 400;
+    this.adapterHost.httpAdapter.reply(host.switchToHttp().getResponse(),
+      { success: false, error: { code: e.code, message: e.message, details: e.details } }, status);
+  }
+}
+</pre>
+</section>
+
+<section class="doc" id="p-strategy" data-group="Patterns">
+<h2>Strategy registry</h2>
+<p>Thay chuỗi <c>switch</c> bằng một bản đồ "loại → implementation" do DI dựng sẵn. Thêm loại mới chỉ cần thêm class, không sửa code cũ.</p>
+<pre data-lang="ts">
+export abstract class Notifier {
+  abstract readonly channel: 'email' | 'slack' | 'sms';
+  abstract send(to: string, msg: string): Promise<void>;
+}
+
+export const NOTIFIERS = Symbol('NOTIFIERS');
+
+@Module({
+  providers: [
+    EmailNotifier, SlackNotifier, SmsNotifier,
+    {
+      provide: NOTIFIERS,
+      inject: [EmailNotifier, SlackNotifier, SmsNotifier],
+      useFactory: (...list: Notifier[]) => new Map(list.map((n) => [n.channel, n])),
+    },
+    NotifyService,
+  ],
+})
+export class NotifyModule {}
+
+@Injectable()
+export class NotifyService {
+  constructor(@Inject(NOTIFIERS) private readonly notifiers: Map<string, Notifier>) {}
+
+  send(channel: string, to: string, msg: string) {
+    const n = this.notifiers.get(channel);
+    if (!n) throw new BadRequestException(`Kênh ${channel} không hỗ trợ`);
+    return n.send(to, msg);
+  }
+}
+</pre>
+<p>Khi danh sách strategy lớn hoặc nằm ở nhiều module, dùng decorator + <a href="#discovery">DiscoveryService</a> để registry tự tìm, khỏi khai báo <c>inject</c> thủ công.</p>
+</section>
+
+<section class="doc" id="p-cls" data-group="Patterns">
+<h2>Request context với AsyncLocalStorage <span class="badge b-com">nestjs-cls</span></h2>
+<p>Thay vì REQUEST scope (làm cả chuỗi provider bị tạo lại mỗi request), lưu dữ liệu theo request trong <c>AsyncLocalStorage</c>. Mọi provider vẫn là singleton nhưng đọc được shopId, requestId, user của request hiện tại ở bất kỳ đâu, kể cả trong logger.</p>
+<pre data-lang="bash">npm i nestjs-cls</pre>
+<pre data-lang="ts">
+export interface AppStore extends ClsStore { shop?: string; userId?: string }
+
+@Module({
+  imports: [
+    ClsModule.forRoot({
+      global: true,
+      middleware: {
+        mount: true,
+        generateId: true,
+        idGenerator: (req: Request) => (req.headers['x-request-id'] as string) ?? randomUUID(),
+        setup: (cls, req: Request) => cls.set('shop', req.headers['x-shop-domain'] as string),
+      },
+    }),
+  ],
+})
+export class AppModule {}
+
+@Injectable()
+export class AuditService {
+  constructor(private readonly cls: ClsService<AppStore>) {}
+
+  record(action: string) {
+    return this.repo.insert({
+      action,
+      shop: this.cls.get('shop'),
+      requestId: this.cls.getId(),
+    });
+  }
+}
+
+// ngoài HTTP (consumer, cron): tự mở context
+await this.cls.run(async () => {
+  this.cls.set('shop', msg.shop);
+  await this.handler.process(msg);
+});
+</pre>
+<p>Không muốn thêm thư viện: tự tạo <c>new AsyncLocalStorage&lt;Store&gt;()</c> từ <c>node:async_hooks</c> và gọi <c>als.run(store, () =&gt; next())</c> trong một middleware.</p>
+</section>
+
+<section class="doc" id="p-transaction" data-group="Patterns">
+<h2>Unit of Work / Transactional</h2>
+<p>Khi một use case ghi nhiều collection, cần transaction. Truyền <c>session</c> qua từng tham số rất dễ quên; plugin <c>@nestjs-cls/transactional</c> <span class="badge b-com">cộng đồng</span> lưu transaction trong CLS và cho phép đánh dấu bằng decorator.</p>
+<pre data-lang="bash">npm i @nestjs-cls/transactional @nestjs-cls/transactional-adapter-mongoose</pre>
+<pre data-lang="ts">
+ClsModule.forRoot({
+  global: true,
+  plugins: [
+    new ClsPluginTransactional({
+      adapter: new TransactionalAdapterMongoose({ mongooseConnectionToken: getConnectionToken() }),
+    }),
+  ],
+});
+
+@Injectable()
+export class OrdersRepository {
+  constructor(
+    @InjectModel(Order.name) private readonly model: Model<Order>,
+    private readonly txHost: TransactionHost<TransactionalAdapterMongoose>,
+  ) {}
+
+  create(data: NewOrder) {
+    return this.model.create([data], { session: this.txHost.tx });  // tx = ClientSession hiện tại
+  }
+}
+
+@Injectable()
+export class CheckoutService {
+  @Transactional()                       // mọi repository bên trong dùng chung một transaction
+  async placeOrder(dto: PlaceOrderDto) {
+    const [order] = await this.orders.create(dto);
+    await this.quota.decrement(dto.shop);
+    await this.outbox.add('order.created', { id: order.id });   // xem pattern Outbox
+    return order;
+  }
+}
+</pre>
+<div class="note warn"><span class="nt">MongoDB</span><p>Transaction cần replica set (kể cả khi dev local). Với TypeORM/Prisma có adapter tương ứng; tự viết thì dùng <c>dataSource.transaction()</c> hoặc <c>prisma.$transaction()</c> và truyền <c>tx</c> xuống.</p></div>
+</section>
+
+<section class="doc" id="p-outbox" data-group="Patterns">
+<h2>Transactional outbox</h2>
+<p>Vấn đề "dual write": ghi DB thành công rồi publish lên RabbitMQ thất bại (hoặc ngược lại) làm hai hệ thống lệch nhau. Outbox giải quyết bằng cách ghi message vào một collection <c>outbox</c> <strong>trong cùng transaction</strong> với dữ liệu nghiệp vụ; một tiến trình relay đọc outbox và publish, đánh dấu đã gửi. Kết quả là "at-least-once": consumer phải <a href="#p-idempotency">idempotent</a>.</p>
+<pre data-lang="ts">
+@Schema({ collection: 'outbox', timestamps: true })
+export class OutboxMessage {
+  @Prop({ required: true }) type: string;
+  @Prop({ type: Object, required: true }) payload: Record<string, unknown>;
+  @Prop({ default: 'pending', index: true }) status: 'pending' | 'sent';
+  @Prop({ default: 0 }) attempts: number;
+}
+
+@Injectable()
+export class OutboxService {
+  constructor(
+    @InjectModel(OutboxMessage.name) private readonly model: Model<OutboxMessage>,
+    private readonly txHost: TransactionHost<TransactionalAdapterMongoose>,
+  ) {}
+
+  add(type: string, payload: Record<string, unknown>) {
+    return this.model.create([{ type, payload }], { session: this.txHost.tx });
+  }
+}
+
+@Injectable()
+export class OutboxRelay {
+  constructor(
+    @InjectModel(OutboxMessage.name) private readonly model: Model<OutboxMessage>,
+    private readonly amqp: AmqpConnection,
+  ) {}
+
+  @Interval(1_000)
+  async flush() {
+    const batch = await this.model.find({ status: 'pending' }).sort({ _id: 1 }).limit(100).lean();
+    for (const m of batch) {
+      await this.amqp.publish('events', m.type, { id: String(m._id), ...m.payload }, { persistent: true });
+      await this.model.updateOne({ _id: m._id }, { $set: { status: 'sent' } });
+    }
+  }
+}
+</pre>
+<p>Chạy relay ở nhiều instance thì bọc <c>flush()</c> trong <a href="#p-lock">distributed lock</a>, hoặc "claim" từng message bằng <c>findOneAndUpdate({'{'} status: 'pending' {'}'}, {'{'} $set: {'{'} status: 'processing' {'}'} {'}'})</c>. Có thể thay polling bằng MongoDB change streams.</p>
+</section>
+
+<section class="doc" id="p-idempotency" data-group="Patterns">
+<h2>Idempotency</h2>
+<h3>Phía HTTP: Idempotency-Key</h3>
+<p>Client gửi header <c>Idempotency-Key</c>; server lưu kết quả lần đầu và trả lại đúng kết quả đó cho các lần retry.</p>
+<pre data-lang="ts">
+@Injectable()
+export class IdempotencyInterceptor implements NestInterceptor {
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  async intercept(ctx: ExecutionContext, next: CallHandler) {
+    const req = ctx.switchToHttp().getRequest();
+    const key = req.headers['idempotency-key'];
+    if (!key) return next.handle();
+
+    const redisKey = `idem:${req.user?.sub ?? 'anon'}:${key}`;
+    const acquired = await this.redis.set(redisKey, 'PENDING', 'EX', 86_400, 'NX');
+    if (!acquired) {
+      const saved = await this.redis.get(redisKey);
+      if (saved === 'PENDING') throw new ConflictException('Request với key này đang được xử lý');
+      return of(JSON.parse(saved!));                      // trả lại kết quả cũ
+    }
+
+    return next.handle().pipe(
+      mergeMap(async (res) => {
+        await this.redis.set(redisKey, JSON.stringify(res), 'EX', 86_400);
+        return res;
+      }),
+      catchError((err) => from(this.redis.del(redisKey)).pipe(mergeMap(() => throwError(() => err)))),
+    );
+  }
+}
+</pre>
+<h3>Phía consumer: inbox</h3>
+<p>Message broker có thể giao trùng. Ghi lại id message đã xử lý với unique index; gặp lỗi trùng khóa thì bỏ qua.</p>
+<pre data-lang="ts">
+async handle(msg: { id: string; shop: string }) {
+  try {
+    await this.processed.create({ _id: msg.id, at: new Date() });   // unique theo _id
+  } catch (e: any) {
+    if (e.code === 11000) return;                                  // đã xử lý rồi
+    throw e;
+  }
+  await this.doWork(msg);
+}
+</pre>
+<p>Cách đơn giản hơn khi được: thiết kế thao tác tự nhiên là idempotent, như <c>upsert</c> theo khóa tự nhiên (<c>shop + orderId</c>) thay vì <c>insert</c>, hoặc <c>$set</c> thay vì <c>$inc</c>.</p>
+</section>
+
+<section class="doc" id="p-lock" data-group="Patterns">
+<h2>Distributed lock</h2>
+<p>Đảm bảo một cron/relay chỉ chạy trên một instance tại một thời điểm. Khóa Redis với token ngẫu nhiên, chỉ chủ khóa mới được xóa.</p>
+<pre data-lang="ts">
+const RELEASE = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`;
+
+@Injectable()
+export class LockService {
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  async run<T>(name: string, ttlMs: number, fn: () => Promise<T>): Promise<T | null> {
+    const key = `lock:${name}`;
+    const token = randomUUID();
+    const ok = await this.redis.set(key, token, 'PX', ttlMs, 'NX');
+    if (!ok) return null;                        // instance khác đang chạy
+    try {
+      return await fn();
+    } finally {
+      await this.redis.eval(RELEASE, 1, key, token);
+    }
+  }
+}
+
+@Cron(CronExpression.EVERY_MINUTE)
+syncUsage() {
+  return this.lock.run('sync-usage', 55_000, () => this.usage.sync());
+}
+</pre>
+<p>TTL phải dài hơn thời gian chạy dự kiến; job dài thì gia hạn khóa định kỳ. Docs v12 giới thiệu <c>@nestjs/locks</c> với <c>@OnOneInstance()</c> cho đúng việc này.</p>
+</section>
+
+<section class="doc" id="p-modular" data-group="Patterns">
+<h2>Modular monolith</h2>
+<p>Một codebase, một lần deploy, nhưng module có ranh giới như microservice. Khi cần tách service sau này, ranh giới đã sẵn.</p>
+<ul>
+  <li>Mỗi module chỉ <c>exports</c> một "facade" service. Không export repository, model hay schema.</li>
+  <li>Module A không import file nội bộ của module B (<c>../billing/billing.repository</c>). Có thể ép bằng <c>eslint-plugin-boundaries</c> hoặc <c>dependency-cruiser</c>.</li>
+  <li>Ghi chéo giữa module đi qua facade; phản ứng phụ (gửi mail, cập nhật thống kê) đi qua event.</li>
+  <li>Mỗi module sở hữu collection của mình; module khác không query thẳng.</li>
+  <li>Dùng CQRS chỉ khi luồng đọc và ghi khác nhau rõ rệt.</li>
+</ul>
+<pre data-lang="ts">
+@Module({
+  imports: [MongooseModule.forFeature([{ name: Plan.name, schema: PlanSchema }])],
+  providers: [BillingService, PlanRepository, ShopifyBillingClient],
+  exports: [BillingService],      // chỉ facade được lộ ra ngoài
+})
+export class BillingModule {}
+</pre>
+</section>
+
+<section class="doc" id="p-shutdown" data-group="Patterns">
+<h2>Graceful shutdown</h2>
+<p>Khi Kubernetes gửi SIGTERM, ứng dụng nên ngừng nhận việc mới, làm xong việc đang dở, rồi mới đóng kết nối.</p>
+<pre data-lang="ts">
+// main.ts
+const app = await NestFactory.create(AppModule, { forceCloseConnections: true });
+app.enableShutdownHooks();
+
+@Injectable()
+export class ShutdownState implements BeforeApplicationShutdown {
+  shuttingDown = false;
+  beforeApplicationShutdown() { this.shuttingDown = true; }   // health readiness trả 503
+}
+
+@Injectable()
+export class OrdersConsumer implements OnModuleDestroy {
+  private inFlight = new Set<Promise<unknown>>();
+
+  async onModuleDestroy() {
+    await this.channel.cancel(this.tag);           // 1. ngừng nhận message mới
+    await Promise.allSettled([...this.inFlight]);   // 2. đợi message đang xử lý
+  }
+}
+// 3. Mongo/Redis đóng ở onApplicationShutdown của module tương ứng
+</pre>
+<p>Thêm <c>preStop</c> sleep vài giây trong manifest Kubernetes để load balancer kịp gỡ pod trước khi app ngừng nhận request.</p>
+</section>
+
+<section class="doc" id="anti-patterns" data-group="Patterns">
+<h2>Anti-patterns cần tránh</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Anti-pattern</th><th>Vì sao có hại</th><th>Thay bằng</th></tr></thead>
+<tbody>
+<tr><td>Business logic trong controller</td><td>Không tái sử dụng được cho consumer/cron, khó test</td><td>Đưa xuống service</td></tr>
+<tr><td>Khai báo lại provider của module khác trong <c>providers</c></td><td>Tạo instance thứ hai, cache/kết nối bị nhân đôi</td><td><c>exports</c> + <c>imports</c></td></tr>
+<tr><td><c>@Global()</c> khắp nơi</td><td>Che giấu phụ thuộc, khó test và tách module</td><td>Chỉ dùng cho config, logger, client hạ tầng</td></tr>
+<tr><td>Đọc <c>process.env</c> rải rác</td><td>Không validate, khó biết app cần biến gì</td><td><c>ConfigModule</c> + <c>registerAs</c> + validate</td></tr>
+<tr><td>Dùng REQUEST scope để mang tenant/user</td><td>Cả chuỗi provider tạo lại mỗi request, mất lifecycle hook</td><td>AsyncLocalStorage / nestjs-cls</td></tr>
+<tr><td><c>forwardRef</c> làm giải pháp lâu dài</td><td>Che vấn đề thiết kế, thứ tự khởi tạo không chắc chắn</td><td>Tách module chung hoặc dùng event</td></tr>
+<tr><td>Trả thẳng document Mongoose ra client</td><td>Lộ field nhạy cảm, dính <c>__v</c>, <c>_id</c> kiểu ObjectId</td><td><c>lean()</c> + DTO output / serializer</td></tr>
+<tr><td>Inject <c>@Res()</c> không có passthrough</td><td>Interceptor, <c>@HttpCode</c> và serializer ngừng hoạt động</td><td><c>@Res({'{'} passthrough: true {'}'})</c></td></tr>
+<tr><td>Nuốt lỗi trong consumer rồi vẫn ack</td><td>Mất message không dấu vết</td><td>Nack về dead-letter queue + log</td></tr>
+<tr><td>Abstraction cho code chỉ dùng một lần</td><td>Thêm file, thêm lớp gián tiếp mà không thêm giá trị</td><td>Viết thẳng, tách khi thật sự có biến thể thứ hai</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="loi-thuong-gap" data-group="Tra cứu">
+<h2>Lỗi thường gặp</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Thông báo</th><th>Nguyên nhân và cách sửa</th></tr></thead>
+<tbody>
+<tr><td><c>Nest can't resolve dependencies of X (?, Y)</c></td><td>Provider ở vị trí <c>?</c> chưa có trong scope của module. Thêm vào <c>providers</c>, hoặc export từ module chứa nó và import module đó. Nếu là interface/type: dùng token + <c>@Inject</c>.</td></tr>
+<tr><td><c>Nest cannot create the module instance… circular dependency</c></td><td>Hai module import lẫn nhau, hoặc barrel file gây vòng import. Dùng <c>forwardRef</c> tạm thời, sửa triệt để bằng cách tách module.</td></tr>
+<tr><td>Validation không chạy, DTO nhận mọi thứ</td><td>Chưa đăng ký <c>ValidationPipe</c>, DTO là interface, hoặc import DTO bằng <c>import type</c>.</td></tr>
+<tr><td>Query param là chuỗi dù khai báo <c>number</c></td><td>Thiếu <c>transform: true</c> hoặc <c>ParseIntPipe</c> / <c>@Type(() =&gt; Number)</c>.</td></tr>
+<tr><td>Interceptor không bọc response</td><td>Handler dùng <c>@Res()</c> không passthrough.</td></tr>
+<tr><td>Route <c>/users/me</c> trả lỗi ObjectId</td><td><c>@Get(':id')</c> khai báo trước <c>@Get('me')</c>. Đổi thứ tự.</td></tr>
+<tr><td>Cron chạy 2 lần</td><td><c>ScheduleModule.forRoot()</c> import ở nhiều module, hoặc chạy nhiều instance.</td></tr>
+<tr><td><c>onModuleDestroy</c> không chạy khi deploy</td><td>Thiếu <c>app.enableShutdownHooks()</c>, hoặc process nhận SIGKILL.</td></tr>
+<tr><td>Wildcard route lỗi sau khi lên Nest 11</td><td>Express 5 cần wildcard có tên: <c>'*'</c> → <c>'{'{'}*splat{'}'}'</c>.</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="checklist" data-group="Tra cứu">
+<h2>Checklist trước khi lên production</h2>
+<ul>
+  <li><c>ValidationPipe</c> global với <c>whitelist: true</c>.</li>
+  <li>Biến môi trường được validate lúc khởi động (fail fast).</li>
+  <li>Exception filter global, log lỗi 5xx có stack và request-id.</li>
+  <li>Log dạng JSON, không log token, mật khẩu, PII.</li>
+  <li>Security headers (helmet), CORS whitelist cụ thể, rate limit cho endpoint đăng nhập.</li>
+  <li><c>app.enableShutdownHooks()</c> và consumer dừng nhận message trong <c>onModuleDestroy</c>.</li>
+  <li>Health check <c>/health</c> (liveness) và kiểm tra DB/Redis (readiness).</li>
+  <li>Index cho mọi query nóng; không <c>synchronize: true</c> với SQL.</li>
+  <li>Cron/relay có khóa phân tán khi chạy nhiều replica.</li>
+  <li>Consumer idempotent, message lỗi đi vào dead-letter queue.</li>
+  <li>Swagger chỉ bật ở môi trường không phải production, hoặc có bảo vệ.</li>
+  <li>Build bằng SWC/tsc, chạy <c>node dist/main</c>, không chạy <c>nest start</c> trong container.</li>
+</ul>
+</section>
+
+<section class="doc" id="nguon" data-group="Tra cứu">
+<h2>Nguồn tham khảo</h2>
+<ul>
+  <li><a href="https://docs.nestjs.com/" target="_blank" rel="noopener">docs.nestjs.com</a> (bản v12) và <a href="https://docs.nestjs.com/v11" target="_blank" rel="noopener">docs.nestjs.com/v11</a></li>
+  <li><a href="https://docs.nestjs.com/faq/request-lifecycle" target="_blank" rel="noopener">FAQ: Request lifecycle</a></li>
+  <li><a href="https://docs.nestjs.com/migration-guide" target="_blank" rel="noopener">Migration guide</a></li>
+  <li><a href="https://github.com/Sairyss/domain-driven-hexagon" target="_blank" rel="noopener">Domain-Driven Hexagon</a>: DDD, ports &amp; adapters với ví dụ NestJS</li>
+  <li><a href="https://github.com/Papooch/nestjs-cls" target="_blank" rel="noopener">nestjs-cls</a> và <a href="https://www.npmjs.com/package/@nestjs-cls/transactional" target="_blank" rel="noopener">@nestjs-cls/transactional</a></li>
+  <li><a href="https://dev.to/rodrigobnogueira/the-dual-write-problem-in-nestjs-solved-with-drizzle-a-transactional-outbox-idempotent-inbox-462l" target="_blank" rel="noopener">Dual-write problem: outbox + idempotent inbox trong NestJS</a></li>
+  <li><a href="https://golevelup.github.io/nestjs/discovery.html" target="_blank" rel="noopener">@golevelup/nestjs-discovery</a></li>
+  <li><a href="https://dev.to/amirtaherkhani/nestjs-design-patterns-23fc" target="_blank" rel="noopener">NestJS design patterns (DEV Community)</a></li>
+</ul>
+</section>

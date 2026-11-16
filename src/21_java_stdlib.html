@@ -1,0 +1,331 @@
+<section class="doc" id="j-collections" data-group="Thư viện chuẩn">
+<h2>Collections Framework</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Interface</th><th>Cài đặt phổ biến</th><th>Đặc điểm</th></tr></thead>
+<tbody>
+<tr><td><c>List</c></td><td><c>ArrayList</c></td><td>Truy cập theo index O(1). Lựa chọn mặc định.</td></tr>
+<tr><td></td><td><c>LinkedList</c></td><td>Hiếm khi nhanh hơn ArrayList trong thực tế; dùng <c>ArrayDeque</c> cho hàng đợi.</td></tr>
+<tr><td><c>Set</c></td><td><c>HashSet</c> / <c>LinkedHashSet</c> / <c>TreeSet</c></td><td>Không thứ tự / giữ thứ tự chèn / sắp xếp.</td></tr>
+<tr><td><c>Map</c></td><td><c>HashMap</c> / <c>LinkedHashMap</c> / <c>TreeMap</c></td><td>Như trên, theo key. <c>LinkedHashMap</c> làm được LRU cache.</td></tr>
+<tr><td><c>Deque</c> / <c>Queue</c></td><td><c>ArrayDeque</c>, <c>PriorityQueue</c></td><td>Stack/hàng đợi; hàng đợi ưu tiên (heap).</td></tr>
+<tr><td>Đồng thời</td><td><c>ConcurrentHashMap</c>, <c>CopyOnWriteArrayList</c>, <c>LinkedBlockingQueue</c></td><td>An toàn khi nhiều thread truy cập.</td></tr>
+</tbody></table></div>
+<pre data-lang="java">
+// immutable: không thêm/sửa được, không chấp nhận null
+List<String> tags = List.of("vip", "risk");
+Map<String, Integer> limits = Map.of("free", 1000, "pro", 50000);
+List<String> copy = List.copyOf(mutableList);
+
+// thao tác Map hữu ích
+Map<String, List<Order>> byShop = new HashMap<>();
+byShop.computeIfAbsent(order.shop(), k -> new ArrayList<>()).add(order);
+counts.merge(ip, 1, Integer::sum);            // đếm
+limits.getOrDefault("trial", 100);
+
+// Sequenced collections (Java 21): API thống nhất cho phần tử đầu/cuối
+List<Order> recent = orders.reversed();
+Order first = orders.getFirst();
+Order last = orders.getLast();
+linkedHashMap.firstEntry();
+
+// xóa an toàn khi đang duyệt
+orders.removeIf(o -> o.status() == Status.CANCELLED);
+</pre>
+<div class="note warn"><span class="nt">Cạm bẫy</span><ul><li>Sửa collection trong vòng <c>for-each</c> ném <c>ConcurrentModificationException</c>.</li><li>Object làm key trong <c>HashMap</c> phải bất biến và có <c>equals/hashCode</c> đúng.</li><li><c>Arrays.asList()</c> trả list cố định kích thước: <c>add()</c> ném lỗi.</li></ul></div>
+</section>
+
+<section class="doc" id="j-streams" data-group="Thư viện chuẩn">
+<h2>Stream API</h2>
+<p>Stream là pipeline xử lý dữ liệu khai báo: nguồn → các bước trung gian (lười, chưa chạy) → một bước kết thúc (kích hoạt toàn bộ pipeline). Stream chỉ dùng được một lần.</p>
+<pre data-lang="java">
+record Order(String shop, String country, BigDecimal total, boolean flagged) {}
+
+// lọc, biến đổi, thu thập
+List<String> riskyShops = orders.stream()
+    .filter(Order::flagged)
+    .map(Order::shop)
+    .distinct()
+    .sorted()
+    .toList();                                           // Java 16, trả list bất biến
+
+// nhóm và tổng hợp
+Map<String, Long> countByCountry = orders.stream()
+    .collect(Collectors.groupingBy(Order::country, Collectors.counting()));
+
+Map<String, BigDecimal> revenueByShop = orders.stream()
+    .collect(Collectors.groupingBy(Order::shop,
+        Collectors.reducing(BigDecimal.ZERO, Order::total, BigDecimal::add)));
+
+Map<Boolean, List<Order>> split = orders.stream()
+    .collect(Collectors.partitioningBy(Order::flagged));
+
+Map<String, Order> latestByShop = orders.stream()
+    .collect(Collectors.toMap(Order::shop, o -> o, (a, b) -> b));   // hàm merge khi trùng key
+
+String csv = orders.stream().map(Order::shop).collect(Collectors.joining(",", "[", "]"));
+
+// flatMap: làm phẳng
+List<String> allTags = customers.stream().flatMap(c -> c.tags().stream()).toList();
+
+// số liệu
+IntSummaryStatistics stats = orders.stream().mapToInt(o -> o.total().intValue()).summaryStatistics();
+Optional<Order> biggest = orders.stream().max(Comparator.comparing(Order::total));
+boolean anyFraud = orders.stream().anyMatch(Order::flagged);
+</pre>
+
+<h3>Stream Gatherers <span class="badge b-v11">Java 24</span></h3>
+<p>Gatherer là bước trung gian tự định nghĩa, lấp chỗ trống mà <c>map/filter</c> không làm được (cửa sổ, tích lũy có trạng thái).</p>
+<pre data-lang="java">
+Stream.of(1, 2, 3, 4, 5, 6, 7, 8).gather(Gatherers.windowFixed(3)).toList();
+// [[1, 2, 3], [4, 5, 6], [7, 8]]
+
+Stream.of(1, 2, 3, 4).gather(Gatherers.windowSliding(2)).toList();
+// [[1, 2], [2, 3], [3, 4]]
+
+Stream.of(1, 2, 3, 4).gather(Gatherers.scan(() -> 0, Integer::sum)).toList();
+// [1, 3, 6, 10]  (tổng cộng dồn)
+
+// gọi I/O song song bằng virtual threads, giữ nguyên thứ tự, tối đa 16 cùng lúc
+List<IpInfo> infos = ips.stream().gather(Gatherers.mapConcurrent(16, geo::lookup)).toList();
+</pre>
+<div class="note warn"><span class="nt">parallelStream</span><p><c>parallelStream()</c> chạy trên common ForkJoinPool dùng chung toàn JVM. Chỉ có lợi với dữ liệu lớn, tính toán CPU thuần, không có I/O và không có side effect. Với I/O, dùng virtual threads hoặc <c>mapConcurrent</c>.</p></div>
+</section>
+
+<section class="doc" id="j-time" data-group="Thư viện chuẩn">
+<h2>Ngày giờ: java.time</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Lớp</th><th>Biểu diễn</th><th>Dùng khi</th></tr></thead>
+<tbody>
+<tr><td><c>Instant</c></td><td>Một thời điểm trên trục UTC</td><td>Lưu DB, log, so sánh thời điểm</td></tr>
+<tr><td><c>LocalDate</c> / <c>LocalTime</c> / <c>LocalDateTime</c></td><td>Ngày/giờ không múi giờ</td><td>Ngày sinh, giờ mở cửa</td></tr>
+<tr><td><c>ZonedDateTime</c></td><td>Ngày giờ + múi giờ (có DST)</td><td>Hiển thị cho người dùng, lịch</td></tr>
+<tr><td><c>Duration</c> / <c>Period</c></td><td>Khoảng thời gian theo giây / theo ngày-tháng-năm</td><td>Timeout / kỳ hạn</td></tr>
+</tbody></table></div>
+<pre data-lang="java">
+Instant now = Instant.now();
+Instant expires = now.plus(Duration.ofMinutes(15));
+
+ZonedDateTime vn = now.atZone(ZoneId.of("Asia/Ho_Chi_Minh"));
+LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+LocalDate trialEnd = today.plusDays(14);
+long days = ChronoUnit.DAYS.between(today, trialEnd);
+
+DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");  // bất biến, thread-safe
+String shown = vn.format(fmt);
+Instant parsed = Instant.parse("2026-11-16T03:00:00Z");
+
+// test được: inject Clock thay vì gọi now() trực tiếp
+class TrialService {
+    private final Clock clock;
+    TrialService(Clock clock) { this.clock = clock; }
+    boolean expired(Instant end) { return Instant.now(clock).isAfter(end); }
+}
+// test: Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)
+</pre>
+<p>Không dùng <c>java.util.Date</c>, <c>Calendar</c>, <c>SimpleDateFormat</c> (có thể đổi giá trị, không thread-safe) trong code mới.</p>
+</section>
+
+<section class="doc" id="j-io" data-group="Thư viện chuẩn">
+<h2>File (NIO.2) và HTTP client</h2>
+<pre data-lang="java">
+Path path = Path.of("data", "orders.csv");
+
+String all = Files.readString(path);                            // file nhỏ
+List<String> lines = Files.readAllLines(path);
+Files.writeString(Path.of("out.txt"), "xin chào", StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+
+try (Stream<String> stream = Files.lines(path)) {               // file lớn: đọc lười, nhớ đóng stream
+    long flagged = stream.skip(1).filter(l -> l.endsWith(",true")).count();
+}
+
+try (Stream<Path> files = Files.walk(Path.of("logs"))) {
+    files.filter(p -> p.toString().endsWith(".log")).forEach(IO::println);
+}
+
+Files.createDirectories(Path.of("exports/2026"));
+Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
+Files.move(tmp, finalPath, StandardCopyOption.ATOMIC_MOVE);     // ghi file "nguyên tử"
+</pre>
+<h3>java.net.http.HttpClient <span class="badge b-v11">Java 11</span></h3>
+<pre data-lang="java">
+HttpClient client = HttpClient.newBuilder()                     // tạo một lần, dùng lại (thread-safe)
+    .connectTimeout(Duration.ofSeconds(3))
+    .followRedirects(HttpClient.Redirect.NORMAL)
+    .build();
+
+HttpRequest req = HttpRequest.newBuilder(URI.create("https://ipinfo.io/1.1.1.1/json"))
+    .header("Accept", "application/json")
+    .timeout(Duration.ofSeconds(5))
+    .GET()
+    .build();
+
+HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
+if (res.statusCode() == 200) IO.println(res.body());
+
+// bất đồng bộ
+CompletableFuture<String> body = client.sendAsync(req, HttpResponse.BodyHandlers.ofString())
+    .thenApply(HttpResponse::body);
+</pre>
+<p><span class="badge b-v11">Java 26</span> hỗ trợ HTTP/3: <c>HttpClient.newBuilder().version(HttpClient.Version.HTTP_3)</c>. Parse JSON cần thư viện ngoài như Jackson <span class="badge b-pkg">lib</span>.</p>
+</section>
+
+<section class="doc" id="j-threads" data-group="Đồng thời">
+<h2>Thread và ExecutorService</h2>
+<p>Không tạo <c>Thread</c> thủ công cho từng việc. <c>ExecutorService</c> quản lý thread, nhận task (<c>Runnable</c> / <c>Callable</c>) và trả <c>Future</c>.</p>
+<pre data-lang="java">
+// pool cố định cho việc nặng CPU: số thread ≈ số core
+ExecutorService cpu = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+
+Future<Integer> f = cpu.submit(() -> heavyScore(order));        // Callable
+Integer score = f.get(2, TimeUnit.SECONDS);                      // chờ có timeout
+
+List<Callable<Integer>> tasks = orders.stream().<Callable<Integer>>map(o -> () -> heavyScore(o)).toList();
+List<Future<Integer>> results = cpu.invokeAll(tasks);
+
+// tắt đúng cách
+cpu.shutdown();                                                  // không nhận task mới
+if (!cpu.awaitTermination(30, TimeUnit.SECONDS)) cpu.shutdownNow();
+
+// lập lịch
+ScheduledExecutorService sched = Executors.newSingleThreadScheduledExecutor();
+sched.scheduleAtFixedRate(this::flushMetrics, 0, 10, TimeUnit.SECONDS);
+</pre>
+<p>Từ Java 19, <c>ExecutorService</c> implement <c>AutoCloseable</c>: dùng trong <c>try (var ex = ...)</c> thì <c>close()</c> chờ mọi task xong.</p>
+</section>
+
+<section class="doc" id="j-virtual-threads" data-group="Đồng thời">
+<h2>Virtual threads <span class="badge b-v11">Java 21</span></h2>
+<p>Virtual thread là thread nhẹ do JVM quản lý. Khi gặp I/O blocking, JVM "tháo" nó khỏi thread hệ điều hành (carrier) để chạy việc khác. Hệ quả: viết code blocking đơn giản như cũ nhưng chạy được hàng trăm nghìn tác vụ I/O đồng thời, không cần reactive/callback.</p>
+<pre data-lang="java">
+// mỗi task một virtual thread
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    List<Future<IpInfo>> futures = ips.stream()
+        .map(ip -> executor.submit(() -> geo.lookup(ip)))     // code blocking bình thường
+        .toList();
+    for (var f : futures) IO.println(f.get());
+}                                                             // close() chờ tất cả xong
+
+Thread t = Thread.ofVirtual().name("worker-", 0).start(() -> process(msg));
+Thread.startVirtualThread(() -> process(msg));
+t.isVirtual();                                                // true
+</pre>
+<div class="table-wrap"><table>
+<thead><tr><th>Nên</th><th>Không nên</th></tr></thead>
+<tbody>
+<tr><td>Dùng cho việc chờ I/O: HTTP, DB, file, message broker</td><td>Dùng cho việc nặng CPU (không nhanh hơn platform thread)</td></tr>
+<tr><td>Tạo mới cho mỗi task, rất rẻ</td><td>Đưa vào pool: pool virtual thread là vô nghĩa</td></tr>
+<tr><td>Giới hạn truy cập tài nguyên bằng <c>Semaphore</c></td><td>Giới hạn bằng kích thước pool như trước</td></tr>
+<tr><td>Dùng <a href="#j-structured">ScopedValue</a> cho dữ liệu ngữ cảnh</td><td>Nhét object nặng vào <c>ThreadLocal</c> (mỗi virtual thread một bản)</td></tr>
+</tbody></table></div>
+<div class="note tip"><span class="nt">Pinning</span><p>Ở JDK 21–23, virtual thread bị "ghim" vào carrier khi blocking bên trong <c>synchronized</c>, làm mất lợi ích; lời khuyên khi đó là đổi sang <c>ReentrantLock</c>. Từ JDK 24 vấn đề này đã được sửa; chỉ còn ghim khi gọi native method hoặc foreign function. Theo dõi bằng sự kiện JFR <c>jdk.VirtualThreadPinned</c>.</p></div>
+<pre data-lang="java">
+// giới hạn 20 request đồng thời tới API ngoài dù có 10.000 virtual thread
+private final Semaphore permits = new Semaphore(20);
+
+IpInfo lookup(String ip) throws InterruptedException {
+    permits.acquire();
+    try { return client.get(ip); } finally { permits.release(); }
+}
+</pre>
+</section>
+
+<section class="doc" id="j-completable" data-group="Đồng thời">
+<h2>CompletableFuture</h2>
+<p>Ghép các bước bất đồng bộ thành chuỗi, tương tự Promise trong JavaScript.</p>
+<pre data-lang="java">
+ExecutorService io = Executors.newVirtualThreadPerTaskExecutor();
+
+CompletableFuture<Shop> shopF = CompletableFuture.supplyAsync(() -> shops.find(id), io);
+CompletableFuture<List<Rule>> rulesF = CompletableFuture.supplyAsync(() -> rules.byShop(id), io);
+
+CompletableFuture<Dashboard> dash = shopF
+    .thenCombine(rulesF, Dashboard::new)                // ghép hai kết quả (≈ Promise.all cho 2)
+    .orTimeout(3, TimeUnit.SECONDS)                     // quá hạn → TimeoutException
+    .exceptionally(ex -> Dashboard.empty());            // ≈ .catch()
+
+CompletableFuture<Risk> risk = shopF
+    .thenApply(Shop::country)                            // ≈ .then(x => ...)
+    .thenCompose(c -> CompletableFuture.supplyAsync(() -> scorer.score(c), io));  // flatMap
+
+CompletableFuture.allOf(shopF, rulesF).join();          // chờ tất cả; join() ném unchecked
+</pre>
+<p>Không truyền executor thì <c>supplyAsync</c> chạy trên <c>ForkJoinPool.commonPool()</c>, không hợp với I/O blocking. Với virtual threads, nhiều trường hợp có thể viết code tuần tự thay cho chuỗi <c>CompletableFuture</c>.</p>
+</section>
+
+<section class="doc" id="j-sync" data-group="Đồng thời">
+<h2>Đồng bộ hóa và Java Memory Model</h2>
+<p>Khi nhiều thread cùng đọc/ghi một biến, cần hai bảo đảm: <strong>nguyên tử</strong> (không bị chen ngang giữa chừng) và <strong>khả kiến</strong> (thread khác thấy giá trị mới). Java Memory Model định nghĩa quan hệ <em>happens-before</em>: unlock trước lock, ghi <c>volatile</c> trước đọc <c>volatile</c>, <c>Thread.start()</c> trước mọi hành động trong thread đó.</p>
+<pre data-lang="java">
+// 1. synchronized: nguyên tử + khả kiến
+private int count;
+public synchronized void inc() { count++; }
+
+// 2. volatile: chỉ khả kiến, KHÔNG nguyên tử (count++ vẫn sai)
+private volatile boolean running = true;
+public void stop() { running = false; }
+
+// 3. atomic: nguyên tử không cần khóa
+private final AtomicLong requests = new AtomicLong();
+requests.incrementAndGet();
+private final LongAdder hits = new LongAdder();          // nhanh hơn khi ghi rất nhiều
+hits.increment();
+
+// 4. ConcurrentHashMap: thao tác gộp nguyên tử
+ConcurrentHashMap<String, LongAdder> perIp = new ConcurrentHashMap<>();
+perIp.computeIfAbsent(ip, k -> new LongAdder()).increment();
+perIp.merge(shop, 1L, Long::sum);
+
+// 5. lock tường minh: có tryLock, timeout, nhiều condition
+private final ReentrantLock lock = new ReentrantLock();
+if (lock.tryLock(100, TimeUnit.MILLISECONDS)) {
+    try { refreshToken(); } finally { lock.unlock(); }
+}
+ReadWriteLock rw = new ReentrantReadWriteLock();         // nhiều reader, một writer
+
+// 6. điều phối
+CountDownLatch ready = new CountDownLatch(3);            // chờ 3 sự kiện
+ready.countDown(); ready.await();
+</pre>
+<div class="note tip"><span class="nt">Nguyên tắc</span><p>Cách an toàn nhất là không chia sẻ trạng thái có thể sửa: dùng object bất biến (record), truyền dữ liệu qua <c>BlockingQueue</c>, hoặc giới hạn trạng thái trong một thread. Ưu tiên tiện ích của <c>java.util.concurrent</c> hơn <c>wait()/notify()</c>.</p></div>
+</section>
+
+<section class="doc" id="j-structured" data-group="Đồng thời">
+<h2>Scoped Values và Structured Concurrency</h2>
+<h3>ScopedValue <span class="badge b-v11">Java 25</span></h3>
+<p>Thay thế <c>ThreadLocal</c> để truyền dữ liệu ngữ cảnh (tenant, user, request-id) xuống call stack mà không cần tham số. Giá trị bất biến, chỉ tồn tại trong phạm vi <c>run</c>, rẻ với virtual threads. Tương đương AsyncLocalStorage trong Node.</p>
+<pre data-lang="java">
+public final class RequestContext {
+    public static final ScopedValue<String> SHOP = ScopedValue.newInstance();
+}
+
+// ở tầng nhận request
+ScopedValue.where(RequestContext.SHOP, "demo.myshopify.com")
+    .run(() -> orderService.process(order));
+
+// ở bất kỳ đâu bên dưới
+String shop = RequestContext.SHOP.get();                 // ngoài phạm vi → NoSuchElementException
+String safe = RequestContext.SHOP.orElse("unknown");
+</pre>
+
+<h3>Structured Concurrency <span class="badge b-v12">preview</span></h3>
+<p>Coi một nhóm tác vụ con như một đơn vị: nếu một tác vụ lỗi thì các tác vụ còn lại bị hủy, và không tác vụ nào "rò" ra ngoài block. Tới JDK 27 vẫn là preview (cần <c>--enable-preview</c>), API có thể còn đổi.</p>
+<pre data-lang="java">
+record Profile(User user, List<Order> orders) {}
+
+Profile load(long id) throws InterruptedException {
+    try (var scope = StructuredTaskScope.open()) {        // mặc định: tất cả phải thành công
+        Subtask<User> user = scope.fork(() -> userRepo.find(id));
+        Subtask<List<Order>> orders = scope.fork(() -> orderRepo.byUser(id));
+        scope.join();                                     // một subtask lỗi → hủy phần còn lại và ném lỗi
+        return new Profile(user.get(), orders.get());
+    }
+}
+
+// lấy kết quả của tác vụ nhanh nhất, hủy phần còn lại
+try (var scope = StructuredTaskScope.open(Joiner.<String>anySuccessfulOrThrow())) {
+    scope.fork(() -> mirrorA.fetch());
+    scope.fork(() -> mirrorB.fetch());
+    return scope.join();
+}
+</pre>
+</section>

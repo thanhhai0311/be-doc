@@ -1,0 +1,216 @@
+<section class="doc" id="j-build" data-group="JVM &amp; công cụ">
+<h2>Build: Maven và Gradle</h2>
+<p>Hai công cụ build chính, cùng quy ước thư mục:</p>
+<pre data-lang="text">
+my-app/
+├── pom.xml  (hoặc build.gradle.kts)
+└── src/
+    ├── main/java/com/example/...      # code
+    ├── main/resources/                 # cấu hình, file tĩnh
+    └── test/java/com/example/...      # test
+</pre>
+<pre data-lang="xml" data-file="pom.xml">
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>fraud-core</artifactId>
+  <version>1.0.0</version>
+
+  <properties>
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.18.2</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.4</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
+</pre>
+<pre data-lang="kotlin" data-file="build.gradle.kts">
+plugins { java; application }
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }   // Gradle tự tải JDK đúng bản
+
+dependencies {
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+application { mainClass = "com.example.App" }
+tasks.test { useJUnitPlatform() }
+</pre>
+<div class="table-wrap"><table>
+<thead><tr><th>Việc</th><th>Maven</th><th>Gradle</th></tr></thead>
+<tbody>
+<tr><td>Build + test</td><td><c>mvn verify</c></td><td><c>./gradlew build</c></td></tr>
+<tr><td>Chỉ test</td><td><c>mvn test</c></td><td><c>./gradlew test</c></td></tr>
+<tr><td>Xem cây dependency</td><td><c>mvn dependency:tree</c></td><td><c>./gradlew dependencies</c></td></tr>
+<tr><td>Chạy app</td><td><c>mvn exec:java</c></td><td><c>./gradlew run</c></td></tr>
+</tbody></table></div>
+<p>Số phiên bản thư viện trong ví dụ chỉ để minh họa, hãy kiểm tra bản mới nhất trên Maven Central. Luôn commit wrapper (<c>mvnw</c>, <c>gradlew</c>) để mọi máy build cùng phiên bản công cụ.</p>
+<h3>Đóng gói</h3>
+<ul>
+  <li><c>jar</c>: gói class thành file <c>.jar</c>; "fat jar" chứa cả dependency (Maven Shade, Spring Boot plugin).</li>
+  <li><c>jlink</c>: tạo runtime chỉ gồm module cần thiết, image Docker nhỏ hơn nhiều.</li>
+  <li><c>jpackage</c>: đóng gói thành bộ cài native (.deb, .msi, .dmg).</li>
+</ul>
+</section>
+
+<section class="doc" id="j-testing" data-group="JVM &amp; công cụ">
+<h2>Testing: JUnit, AssertJ, Mockito</h2>
+<pre data-lang="java">
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class RiskServiceTest {
+
+    @Mock IpLookup ipLookup;                     // mock phụ thuộc
+    @InjectMocks RiskService service;            // inject mock vào constructor
+
+    @Test
+    @DisplayName("IP proxy bị chấm điểm cao")
+    void proxyIsRisky() {
+        when(ipLookup.lookup("1.2.3.4")).thenReturn(new IpInfo("VN", true));
+
+        int score = service.score("1.2.3.4");
+
+        assertThat(score).isGreaterThanOrEqualTo(80);
+        verify(ipLookup, times(1)).lookup("1.2.3.4");
+    }
+
+    @Test
+    void invalidIpThrows() {
+        assertThatThrownBy(() -> service.score("abc"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("IP");
+    }
+
+    @ParameterizedTest
+    @CsvSource({ "VN,false,10", "US,true,80" })
+    void scoreTable(String country, boolean proxy, int expected) {
+        when(ipLookup.lookup(any())).thenReturn(new IpInfo(country, proxy));
+        assertThat(service.score("8.8.8.8")).isEqualTo(expected);
+    }
+}
+</pre>
+<p>Vòng đời: <c>@BeforeEach</c>, <c>@AfterEach</c>, <c>@BeforeAll</c>/<c>@AfterAll</c> (static). Test tích hợp với DB/Redis/RabbitMQ thật dùng <strong>Testcontainers</strong> <span class="badge b-pkg">lib</span> để khởi động container trong test.</p>
+</section>
+
+<section class="doc" id="j-gc" data-group="JVM &amp; công cụ">
+<h2>GC, tuning và chẩn đoán</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Collector</th><th>Flag</th><th>Hợp với</th></tr></thead>
+<tbody>
+<tr><td>G1 (mặc định)</td><td><c>-XX:+UseG1GC</c></td><td>Đa số ứng dụng server, cân bằng throughput và độ trễ. Từ JDK 27 là mặc định cả trên máy nhỏ.</td></tr>
+<tr><td>ZGC (generational)</td><td><c>-XX:+UseZGC</c></td><td>Heap lớn, cần pause dưới mili-giây.</td></tr>
+<tr><td>Shenandoah</td><td><c>-XX:+UseShenandoahGC</c></td><td>Độ trễ thấp (có trong nhiều bản OpenJDK, không có trong Oracle JDK).</td></tr>
+<tr><td>Parallel</td><td><c>-XX:+UseParallelGC</c></td><td>Batch job cần throughput tối đa, chấp nhận pause dài.</td></tr>
+<tr><td>Serial</td><td><c>-XX:+UseSerialGC</c></td><td>Heap rất nhỏ, một core.</td></tr>
+</tbody></table></div>
+<pre data-lang="bash">
+# chạy trong container: để JVM tính heap theo giới hạn RAM của container
+java -XX:MaxRAMPercentage=75 -XX:+UseG1GC -XX:MaxGCPauseMillis=200 \
+     -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp \
+     -Xlog:gc*:file=/tmp/gc.log:time,uptime \
+     -jar app.jar
+
+# hoặc cố định heap
+java -Xms2g -Xmx2g -jar app.jar
+</pre>
+<h3>Công cụ chẩn đoán có sẵn trong JDK</h3>
+<pre data-lang="bash">
+jcmd                                  # liệt kê process Java
+jcmd <pid> Thread.print               # dump thread (tìm deadlock, thread bị treo)
+jcmd <pid> GC.heap_info               # tình trạng heap
+jcmd <pid> GC.heap_dump /tmp/heap.hprof
+jcmd <pid> VM.flags                   # flag JVM đang dùng
+
+# Java Flight Recorder: profiling chi phí rất thấp, dùng được trên production
+jcmd <pid> JFR.start duration=60s filename=/tmp/rec.jfr
+java -XX:StartFlightRecording=duration=60s,filename=rec.jfr,settings=profile -jar app.jar
+jfr print --events jdk.VirtualThreadPinned rec.jfr
+</pre>
+<p>Mở file <c>.jfr</c> bằng JDK Mission Control; mở heap dump bằng Eclipse MAT để tìm rò rỉ bộ nhớ.</p>
+</section>
+
+<section class="doc" id="j-logging" data-group="JVM &amp; công cụ">
+<h2>Logging</h2>
+<p>Chuẩn phổ biến: code gọi API <strong>SLF4J</strong> <span class="badge b-pkg">lib</span>, cài đặt thực tế là Logback hoặc Log4j2. Thư viện chỉ phụ thuộc SLF4J; ứng dụng chọn backend.</p>
+<pre data-lang="java">
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class OrderSync {
+    private static final Logger log = LoggerFactory.getLogger(OrderSync.class);
+
+    void sync(Order o) {
+        log.info("Sync order {} for shop {}", o.id(), o.shop());   // placeholder: không nối chuỗi
+        try {
+            client.push(o);
+        } catch (IOException e) {
+            log.error("Sync failed for order {}", o.id(), e);       // exception để cuối cùng
+        }
+        if (log.isDebugEnabled()) log.debug("payload={}", toJson(o)); // tránh tính toán tốn kém
+    }
+}
+</pre>
+<p>Dùng MDC (<c>MDC.put("requestId", id)</c>) để gắn request-id vào mọi dòng log, và encoder JSON (logstash-logback-encoder) cho môi trường production.</p>
+</section>
+
+<section class="doc" id="j-nest-map" data-group="JVM &amp; công cụ">
+<h2>Đối chiếu NestJS ↔ Spring Boot</h2>
+<p>Backend Java phần lớn chạy trên Spring Boot. Nếu bạn đã quen NestJS, bảng này giúp chuyển đổi tư duy nhanh vì Nest vốn mượn nhiều ý tưởng từ Spring.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>NestJS</th><th>Spring Boot</th></tr></thead>
+<tbody>
+<tr><td><c>@Module()</c></td><td><c>@Configuration</c> + component scan theo package</td></tr>
+<tr><td><c>@Injectable()</c> provider</td><td><c>@Service</c>, <c>@Component</c>, <c>@Repository</c>, hoặc <c>@Bean</c></td></tr>
+<tr><td>Constructor injection</td><td>Constructor injection (khuyên dùng, không cần <c>@Autowired</c>)</td></tr>
+<tr><td><c>@Controller</c> + <c>@Get</c></td><td><c>@RestController</c> + <c>@GetMapping</c></td></tr>
+<tr><td><c>@Param</c>, <c>@Query</c>, <c>@Body</c></td><td><c>@PathVariable</c>, <c>@RequestParam</c>, <c>@RequestBody</c></td></tr>
+<tr><td><c>ValidationPipe</c> + class-validator</td><td><c>@Valid</c> + Jakarta Bean Validation (<c>@NotBlank</c>, <c>@Size</c>)</td></tr>
+<tr><td>Guard</td><td>Spring Security filter chain, <c>@PreAuthorize</c></td></tr>
+<tr><td>Interceptor</td><td><c>HandlerInterceptor</c> hoặc AOP <c>@Around</c></td></tr>
+<tr><td>Exception filter</td><td><c>@RestControllerAdvice</c> + <c>@ExceptionHandler</c></td></tr>
+<tr><td>Middleware</td><td>Servlet <c>Filter</c> / <c>OncePerRequestFilter</c></td></tr>
+<tr><td><c>ConfigModule</c> + <c>registerAs</c></td><td><c>application.yml</c> + <c>@ConfigurationProperties</c> (record)</td></tr>
+<tr><td><c>@nestjs/schedule</c> <c>@Cron</c></td><td><c>@Scheduled(cron = "...")</c></td></tr>
+<tr><td><c>@OnEvent</c></td><td><c>@EventListener</c>, <c>@TransactionalEventListener</c></td></tr>
+<tr><td>Mongoose model</td><td>Spring Data <c>MongoRepository</c> / JPA <c>JpaRepository</c></td></tr>
+<tr><td><c>Test.createTestingModule</c></td><td><c>@SpringBootTest</c>, <c>@WebMvcTest</c>, <c>@MockitoBean</c></td></tr>
+</tbody></table></div>
+<pre data-lang="java">
+@RestController
+@RequestMapping("/rules")
+public class RuleController {
+    private final RuleService service;
+    public RuleController(RuleService service) { this.service = service; }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public RuleDto create(@Valid @RequestBody CreateRuleRequest req) {
+        return service.create(req);
+    }
+
+    @GetMapping("/{id}")
+    public RuleDto get(@PathVariable String id) { return service.get(id); }
+}
+
+public record CreateRuleRequest(@NotBlank @Size(max = 120) String name, @NotNull RuleAction action) {}
+</pre>
+</section>

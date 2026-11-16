@@ -3,14 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Sổ tay tiếng Việt về NestJS và Java hiện đại, kèm ví dụ code và design pattern.">
-<style>
-:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
-body { margin: 0; }
-img { max-width: 100%; }
-[hidden] { display: none !important; }
-</style>
-<title>Sổ tay NestJS &amp; Java</title>
+<meta name="description" content="Sổ tay tiếng Việt: NestJS, Java, RabbitMQ, Kafka, Redis — khái niệm, ví dụ code và pattern.">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Sổ tay Backend</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -84,8 +79,8 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .brand-mark { width: 28px; height: 28px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; color: #fff; font-size: 14px; font-weight: 800; }
 .brand small { font-weight: 500; color: var(--muted); font-size: 13px; }
 .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; font-size: 12.5px; color: var(--muted); align-items: center; }
-.tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
-.tab { font: 600 14px var(--font-body); color: var(--muted); background: transparent; border: 0; border-radius: 7px; padding: 5px 16px; cursor: pointer; }
+.tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.tab { white-space: nowrap; font: 600 14px var(--font-body); color: var(--muted); background: transparent; border: 0; border-radius: 7px; padding: 5px 16px; cursor: pointer; }
 .tab:hover { color: var(--ink); }
 .tab[aria-selected="true"] { background: var(--surface); color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
 .brand-mark { font-family: var(--font-mono); }
@@ -212,10 +207,13 @@ td code { white-space: nowrap; }
 
 
 <header class="topbar">
-  <a class="brand" href="#top"><span class="brand-mark">{}</span><span>Sổ tay NestJS &amp; Java <small>· tiếng Việt</small></span></a>
+  <a class="brand" href="#top"><span class="brand-mark">{}</span><span>Sổ tay Backend <small>· tiếng Việt</small></span></a>
   <div class="tabs" role="tablist" aria-label="Chọn tài liệu">
     <button class="tab" role="tab" id="tab-nest" data-tab="nest" aria-selected="true" type="button">NestJS</button>
     <button class="tab" role="tab" id="tab-java" data-tab="java" aria-selected="false" type="button">Java</button>
+    <button class="tab" role="tab" id="tab-rabbit" data-tab="rabbit" aria-selected="false" type="button">RabbitMQ</button>
+    <button class="tab" role="tab" id="tab-kafka" data-tab="kafka" aria-selected="false" type="button">Kafka</button>
+    <button class="tab" role="tab" id="tab-redis" data-tab="redis" aria-selected="false" type="button">Redis</button>
   </div>
   <div class="legend" data-for="nest">
     <span><span class="badge b-v11">v11</span> có từ Nest 11</span>
@@ -228,6 +226,10 @@ td code { white-space: nowrap; }
     <span><span class="badge b-v12">preview</span> cần --enable-preview</span>
     <span><span class="badge b-pkg">lib</span> thư viện ngoài JDK</span>
   </div>
+  <div class="legend" data-for="rabbit kafka redis" hidden>
+    <span><span class="badge b-v11">4.2</span> có từ phiên bản</span>
+    <span><span class="badge b-pkg">lib</span> thư viện client</span>
+  </div>
   <button class="toc-toggle" id="tocToggle" type="button" aria-expanded="false" aria-controls="toc">Mục lục</button>
 </header>
 
@@ -237,6 +239,9 @@ td code { white-space: nowrap; }
   <input id="tocSearch" class="toc-search" type="search" placeholder="guard, pipe, queue…" autocomplete="off">
   <nav class="tocNav" data-for="nest"><div class="toc-group"><h4>Bắt đầu</h4><ul><li data-target="tong-quan"><a href="#tong-quan">NestJS là gì</a></li><li data-target="kien-truc"><a href="#kien-truc">Kiến trúc và vòng đời request</a></li></ul></div><div class="toc-group"><h4>Nền tảng</h4><ul><li data-target="controllers"><a href="#controllers">Controllers</a></li><li data-target="providers"><a href="#providers">Providers và Dependency Injection</a></li><li data-target="modules"><a href="#modules">Modules</a></li><li data-target="middleware"><a href="#middleware">Middleware</a></li><li data-target="exception-filters"><a href="#exception-filters">Exception filters</a></li><li data-target="pipes"><a href="#pipes">Pipes</a></li><li data-target="guards"><a href="#guards">Guards</a></li><li data-target="interceptors"><a href="#interceptors">Interceptors</a></li><li data-target="decorators"><a href="#decorators">Custom decorators</a></li></ul></div><div class="toc-group"><h4>Chuyên sâu DI</h4><ul><li data-target="custom-providers"><a href="#custom-providers">Custom providers</a></li><li data-target="dynamic-modules"><a href="#dynamic-modules">Dynamic modules</a></li><li data-target="scopes"><a href="#scopes">Injection scopes</a></li><li data-target="circular"><a href="#circular">Circular dependency, ModuleRef và lazy loading</a></li><li data-target="execution-context"><a href="#execution-context">Execution context và Reflector</a></li><li data-target="lifecycle"><a href="#lifecycle">Lifecycle events</a></li><li data-target="discovery"><a href="#discovery">Discovery service</a></li><li data-target="testing"><a href="#testing">Testing</a></li></ul></div><div class="toc-group"><h4>Kỹ thuật</h4><ul><li data-target="config"><a href="#config">Configuration</a></li><li data-target="database"><a href="#database">Database</a></li><li data-target="validation"><a href="#validation">Validation và Serialization</a></li><li data-target="caching"><a href="#caching">Caching</a></li><li data-target="versioning"><a href="#versioning">Versioning</a></li><li data-target="scheduling"><a href="#scheduling">Task scheduling</a></li><li data-target="queues"><a href="#queues">Queues với BullMQ</a></li><li data-target="events"><a href="#events">Events nội bộ</a></li><li data-target="logging"><a href="#logging">Logging</a></li><li data-target="http-client"><a href="#http-client">Gọi HTTP ra ngoài</a></li><li data-target="files"><a href="#files">Upload, tải file và Server-Sent Events</a></li></ul></div><div class="toc-group"><h4>Bảo mật</h4><ul><li data-target="security"><a href="#security">Xác thực (Authentication) với JWT</a></li></ul></div><div class="toc-group"><h4>Giao tiếp</h4><ul><li data-target="websockets"><a href="#websockets">WebSockets</a></li><li data-target="microservices"><a href="#microservices">Microservices</a></li><li data-target="graphql"><a href="#graphql">GraphQL</a></li></ul></div><div class="toc-group"><h4>Công cụ</h4><ul><li data-target="openapi"><a href="#openapi">OpenAPI (Swagger)</a></li><li data-target="cqrs"><a href="#cqrs">CQRS</a></li><li data-target="tooling"><a href="#tooling">Health check, CLI và công cụ khác</a></li></ul></div><div class="toc-group"><h4>Patterns</h4><ul><li data-target="patterns"><a href="#patterns">Tổng quan các pattern</a></li><li data-target="p-layered"><a href="#p-layered">Layered feature module</a></li><li data-target="p-repository"><a href="#p-repository">Repository với abstract class làm token</a></li><li data-target="p-hexagonal"><a href="#p-hexagonal">Ports &amp; Adapters (Hexagonal)</a></li><li data-target="p-envelope"><a href="#p-envelope">Response envelope và pagination</a></li><li data-target="p-errors"><a href="#p-errors">Domain errors tách khỏi HTTP</a></li><li data-target="p-strategy"><a href="#p-strategy">Strategy registry</a></li><li data-target="p-cls"><a href="#p-cls">Request context với AsyncLocalStorage</a></li><li data-target="p-transaction"><a href="#p-transaction">Unit of Work / Transactional</a></li><li data-target="p-outbox"><a href="#p-outbox">Transactional outbox</a></li><li data-target="p-idempotency"><a href="#p-idempotency">Idempotency</a></li><li data-target="p-lock"><a href="#p-lock">Distributed lock</a></li><li data-target="p-modular"><a href="#p-modular">Modular monolith</a></li><li data-target="p-shutdown"><a href="#p-shutdown">Graceful shutdown</a></li><li data-target="anti-patterns"><a href="#anti-patterns">Anti-patterns cần tránh</a></li></ul></div><div class="toc-group"><h4>Tra cứu</h4><ul><li data-target="loi-thuong-gap"><a href="#loi-thuong-gap">Lỗi thường gặp</a></li><li data-target="checklist"><a href="#checklist">Checklist trước khi lên production</a></li><li data-target="nguon"><a href="#nguon">Nguồn tham khảo</a></li></ul></div></nav>
   <nav class="tocNav" data-for="java" hidden><div class="toc-group"><h4>Bắt đầu</h4><ul><li data-target="j-tong-quan"><a href="#j-tong-quan">Java, JDK và lộ trình phiên bản</a></li><li data-target="j-jvm"><a href="#j-jvm">JVM hoạt động thế nào</a></li></ul></div><div class="toc-group"><h4>Ngôn ngữ</h4><ul><li data-target="j-co-ban"><a href="#j-co-ban">Cú pháp cơ bản</a></li><li data-target="j-oop"><a href="#j-oop">Lập trình hướng đối tượng</a></li><li data-target="j-records"><a href="#j-records">Records</a></li><li data-target="j-enums"><a href="#j-enums">Enums</a></li><li data-target="j-sealed"><a href="#j-sealed">Sealed classes</a></li><li data-target="j-pattern"><a href="#j-pattern">Pattern matching</a></li><li data-target="j-generics"><a href="#j-generics">Generics</a></li><li data-target="j-exceptions"><a href="#j-exceptions">Exceptions</a></li><li data-target="j-lambda"><a href="#j-lambda">Lambda và functional interface</a></li><li data-target="j-optional"><a href="#j-optional">Optional</a></li><li data-target="j-annotations"><a href="#j-annotations">Annotations và reflection</a></li><li data-target="j-modules"><a href="#j-modules">Package và module</a></li></ul></div><div class="toc-group"><h4>Thư viện chuẩn</h4><ul><li data-target="j-collections"><a href="#j-collections">Collections Framework</a></li><li data-target="j-streams"><a href="#j-streams">Stream API</a></li><li data-target="j-time"><a href="#j-time">Ngày giờ: java.time</a></li><li data-target="j-io"><a href="#j-io">File (NIO.2) và HTTP client</a></li></ul></div><div class="toc-group"><h4>Đồng thời</h4><ul><li data-target="j-threads"><a href="#j-threads">Thread và ExecutorService</a></li><li data-target="j-virtual-threads"><a href="#j-virtual-threads">Virtual threads</a></li><li data-target="j-completable"><a href="#j-completable">CompletableFuture</a></li><li data-target="j-sync"><a href="#j-sync">Đồng bộ hóa và Java Memory Model</a></li><li data-target="j-structured"><a href="#j-structured">Scoped Values và Structured Concurrency</a></li></ul></div><div class="toc-group"><h4>JVM &amp; công cụ</h4><ul><li data-target="j-build"><a href="#j-build">Build: Maven và Gradle</a></li><li data-target="j-testing"><a href="#j-testing">Testing: JUnit, AssertJ, Mockito</a></li><li data-target="j-gc"><a href="#j-gc">GC, tuning và chẩn đoán</a></li><li data-target="j-logging"><a href="#j-logging">Logging</a></li><li data-target="j-nest-map"><a href="#j-nest-map">Đối chiếu NestJS ↔ Spring Boot</a></li></ul></div><div class="toc-group"><h4>Design patterns</h4><ul><li data-target="j-patterns"><a href="#j-patterns">Bản đồ design pattern</a></li><li data-target="j-p-factory"><a href="#j-p-factory">Static factory và Factory Method</a></li><li data-target="j-p-builder"><a href="#j-p-builder">Builder</a></li><li data-target="j-p-singleton"><a href="#j-p-singleton">Singleton</a></li><li data-target="j-p-adapter"><a href="#j-p-adapter">Adapter</a></li><li data-target="j-p-decorator"><a href="#j-p-decorator">Decorator</a></li><li data-target="j-p-proxy"><a href="#j-p-proxy">Proxy và dynamic proxy</a></li><li data-target="j-p-strategy"><a href="#j-p-strategy">Strategy</a></li><li data-target="j-p-observer"><a href="#j-p-observer">Observer</a></li><li data-target="j-p-command"><a href="#j-p-command">Command</a></li><li data-target="j-p-template"><a href="#j-p-template">Template Method</a></li><li data-target="j-p-state"><a href="#j-p-state">State</a></li><li data-target="j-p-chain"><a href="#j-p-chain">Chain of Responsibility</a></li><li data-target="j-p-visitor"><a href="#j-p-visitor">Visitor và sealed + switch</a></li></ul></div><div class="toc-group"><h4>Pattern hiện đại</h4><ul><li data-target="j-p-value"><a href="#j-p-value">Value Object và Result type</a></li><li data-target="j-p-di"><a href="#j-p-di">Dependency Injection và Ports &amp; Adapters</a></li><li data-target="j-p-resilience"><a href="#j-p-resilience">Retry, Circuit Breaker, Bulkhead</a></li><li data-target="j-p-producer"><a href="#j-p-producer">Producer–Consumer</a></li><li data-target="j-p-enterprise"><a href="#j-p-enterprise">Các pattern kiến trúc khác</a></li></ul></div><div class="toc-group"><h4>Tra cứu</h4><ul><li data-target="j-effective"><a href="#j-effective">Nguyên tắc viết Java tốt</a></li><li data-target="j-loi"><a href="#j-loi">Lỗi thường gặp</a></li><li data-target="j-nguon"><a href="#j-nguon">Nguồn tham khảo</a></li></ul></div></nav>
+  <nav class="tocNav" data-for="rabbit" hidden><div class="toc-group"><h4>Khái niệm</h4><ul><li data-target="r-tong-quan"><a href="#r-tong-quan">RabbitMQ là gì</a></li><li data-target="r-exchange"><a href="#r-exchange">Exchange và routing</a></li><li data-target="r-queue"><a href="#r-queue">Ba loại queue</a></li><li data-target="r-reliability"><a href="#r-reliability">Độ tin cậy: confirm, ack, prefetch</a></li><li data-target="r-dlx"><a href="#r-dlx">Dead letter, TTL, giới hạn độ dài, retry</a></li><li data-target="r-other"><a href="#r-other">Single active consumer, priority, streams</a></li></ul></div><div class="toc-group"><h4>Sử dụng</h4><ul><li data-target="r-nest"><a href="#r-nest">Dùng trong NestJS</a></li><li data-target="r-java"><a href="#r-java">Dùng trong Java</a></li></ul></div><div class="toc-group"><h4>Patterns</h4><ul><li data-target="r-p-work"><a href="#r-p-work">Work queue và Publish/Subscribe</a></li><li data-target="r-p-retry"><a href="#r-p-retry">Retry có độ trễ và parking lot</a></li><li data-target="r-p-idem"><a href="#r-p-idem">Idempotent consumer và thứ tự</a></li><li data-target="r-p-rpc"><a href="#r-p-rpc">RPC qua RabbitMQ</a></li></ul></div><div class="toc-group"><h4>Tra cứu</h4><ul><li data-target="r-checklist"><a href="#r-checklist">Checklist production</a></li></ul></div></nav>
+  <nav class="tocNav" data-for="kafka" hidden><div class="toc-group"><h4>Khái niệm</h4><ul><li data-target="k-tong-quan"><a href="#k-tong-quan">Kafka là gì</a></li><li data-target="k-concepts"><a href="#k-concepts">Topic, partition, offset, consumer group</a></li><li data-target="k-producer"><a href="#k-producer">Producer</a></li><li data-target="k-consumer"><a href="#k-consumer">Consumer và commit offset</a></li><li data-target="k-semantics"><a href="#k-semantics">Đảm bảo giao nhận và exactly-once</a></li><li data-target="k-retention"><a href="#k-retention">Retention, compaction và share group</a></li><li data-target="k-cli"><a href="#k-cli">Lệnh CLI hay dùng</a></li><li data-target="k-so-sanh"><a href="#k-so-sanh">Chọn RabbitMQ, Kafka hay Redis?</a></li></ul></div><div class="toc-group"><h4>Sử dụng</h4><ul><li data-target="k-nest"><a href="#k-nest">Dùng trong NestJS</a></li><li data-target="k-java"><a href="#k-java">Dùng trong Java</a></li></ul></div><div class="toc-group"><h4>Patterns</h4><ul><li data-target="k-p-key"><a href="#k-p-key">Chọn key và thiết kế topic</a></li><li data-target="k-p-retry"><a href="#k-p-retry">Retry topic và dead-letter topic</a></li><li data-target="k-p-eos"><a href="#k-p-eos">Consume–transform–produce exactly-once</a></li><li data-target="k-p-outbox"><a href="#k-p-outbox">Outbox + CDC và idempotent consumer</a></li><li data-target="k-p-state"><a href="#k-p-state">Compacted topic làm bảng trạng thái</a></li></ul></div><div class="toc-group"><h4>Tra cứu</h4><ul><li data-target="k-checklist"><a href="#k-checklist">Checklist production</a></li></ul></div></nav>
+  <nav class="tocNav" data-for="redis" hidden><div class="toc-group"><h4>Khái niệm</h4><ul><li data-target="rd-tong-quan"><a href="#rd-tong-quan">Redis là gì</a></li><li data-target="rd-types"><a href="#rd-types">Kiểu dữ liệu</a></li><li data-target="rd-commands"><a href="#rd-commands">Lệnh cốt lõi</a></li><li data-target="rd-messaging"><a href="#rd-messaging">Pub/Sub và Streams</a></li></ul></div><div class="toc-group"><h4>Vận hành</h4><ul><li data-target="rd-persistence"><a href="#rd-persistence">Persistence và eviction</a></li><li data-target="rd-ha"><a href="#rd-ha">Replication, Sentinel và Cluster</a></li><li data-target="rd-perf"><a href="#rd-perf">Hiệu năng và anti-pattern</a></li></ul></div><div class="toc-group"><h4>Sử dụng</h4><ul><li data-target="rd-nest"><a href="#rd-nest">Dùng trong NestJS (ioredis)</a></li><li data-target="rd-java"><a href="#rd-java">Dùng trong Java</a></li></ul></div><div class="toc-group"><h4>Patterns</h4><ul><li data-target="rd-p-cache"><a href="#rd-p-cache">Cache-aside và chống cache stampede</a></li><li data-target="rd-p-lock"><a href="#rd-p-lock">Distributed lock</a></li><li data-target="rd-p-ratelimit"><a href="#rd-p-ratelimit">Rate limiting</a></li><li data-target="rd-p-structures"><a href="#rd-p-structures">Bảng xếp hạng, đếm duy nhất, hàng đợi lịch</a></li><li data-target="rd-p-queue"><a href="#rd-p-queue">Hàng đợi tin cậy với Streams</a></li><li data-target="rd-p-session"><a href="#rd-p-session">Session, idempotency key, feature flag</a></li></ul></div><div class="toc-group"><h4>Tra cứu</h4><ul><li data-target="rd-checklist"><a href="#rd-checklist">Checklist production</a></li></ul></div></nav>
 </aside>
 <main id="top">
 <div class="panel" data-panel="nest" role="tabpanel" aria-labelledby="tab-nest">
@@ -2475,7 +2480,7 @@ export class OrdersConsumer implements OnModuleDestroy {
   <p class="eyebrow">Tài liệu tổng hợp từ dev.java, Oracle Java SE docs và các catalog pattern</p>
   <h1>Sổ tay Java</h1>
   <p class="lead">Java hiện đại từ JDK 21 đến JDK 27: ngôn ngữ, thư viện chuẩn, lập trình đồng thời với virtual threads, công cụ JVM, và các design pattern viết theo phong cách Java mới (record, sealed, lambda). Mỗi phần có ví dụ chạy được và ghi rõ phiên bản JDK.</p>
-  <div class="stats"><span><b>50</b> chủ đề</span><span><b>63</b> ví dụ code</span><span>Bản mới nhất <b>JDK 27</b>, LTS gần nhất <b>JDK 25</b></span></div>
+  <div class="stats"><span><b>50</b> chủ đề</span><span><b>61</b> ví dụ code</span><span>Bản mới nhất <b>JDK 27</b>, LTS gần nhất <b>JDK 25</b></span></div>
 </div>
 
 <section class="doc" id="j-tong-quan" data-group="Bắt đầu"><p class="group-label">Bắt đầu</p>
@@ -3976,6 +3981,1102 @@ Thread.ofVirtual().start(() -&gt; {
 </ul>
 </section>
 </div>
+<div class="panel" data-panel="rabbit" role="tabpanel" aria-labelledby="tab-rabbit" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Tổng hợp từ rabbitmq.com/docs (series 4.4)</p>
+  <h1>Sổ tay RabbitMQ</h1>
+  <p class="lead">Message broker cho hàng đợi công việc và định tuyến sự kiện: exchange, queue type, confirm/ack, dead-letter, retry. Mỗi phần có ví dụ cho cả NestJS và Java, cùng các pattern hay dùng trong production.</p>
+  <div class="stats"><span><b>13</b> chủ đề</span><span><b>6</b> ví dụ code</span><span>Bản mới nhất <b>4.4.0</b> (20/10/2026)</span></div>
+</div>
+
+<section class="doc" id="r-tong-quan" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>RabbitMQ là gì</h2>
+<p>RabbitMQ là <strong>message broker</strong>: producer gửi message tới broker, broker định tuyến vào các queue, consumer lấy message ra xử lý và xác nhận. Hai bên không cần biết nhau, không cần online cùng lúc. Giao thức chính là AMQP 0-9-1; từ 4.x, AMQP 1.0 được hỗ trợ sẵn (không cần plugin) và được docs khuyên dùng cho ứng dụng mới.</p>
+<ol class="pipeline">
+  <li class="k-in"><b>Producer</b><span>Publish message kèm <strong>routing key</strong> tới một <strong>exchange</strong>. Producer không gửi thẳng vào queue.</span></li>
+  <li class="k-int"><b>Exchange</b><span>So routing key với các <strong>binding</strong> để quyết định message vào queue nào (0, 1 hay nhiều queue).</span></li>
+  <li class="k-pipe"><b>Queue</b><span>Lưu message theo thứ tự FIFO cho tới khi được consumer xác nhận.</span></li>
+  <li class="k-guard"><b>Consumer</b><span>Nhận message (push), xử lý, rồi <code>ack</code> hoặc <code>nack</code>.</span></li>
+</ol>
+<h3>Thay đổi quan trọng ở 4.x</h3>
+<ul>
+  <li><strong>4.0</strong>: bỏ hẳn classic mirrored queue. Muốn sao chép dữ liệu giữa các node thì dùng quorum queue hoặc stream. <code>delivery-limit</code> mặc định của quorum queue là 20.</li>
+  <li><strong>4.3</strong>: Khepri (dựa trên Raft) là kho metadata duy nhất, thay Mnesia. Quorum queue có thêm delayed retry, priority 0–31, consumer timeout. Global QoS bị tắt mặc định.</li>
+  <li><strong>4.4</strong>: đặt replica quorum queue theo availability zone, delayed message qua <code>x-opt-delivery-time</code>.</li>
+</ul>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash"># chạy thử local, UI quản trị ở http://localhost:15672 (guest/guest chỉ dùng cho dev)
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4-management</code></pre></div>
+</section>
+
+<section class="doc" id="r-exchange" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Exchange và routing</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Loại</th><th>Cách định tuyến</th><th>Dùng khi</th></tr></thead>
+<tbody>
+<tr><td><code>direct</code></td><td>Routing key khớp chính xác binding key</td><td>Gửi việc theo loại cố định (<code>email</code>, <code>sms</code>)</td></tr>
+<tr><td><code>fanout</code></td><td>Bỏ qua routing key, copy tới mọi queue đã bind</td><td>Broadcast: mọi service đều cần biết</td></tr>
+<tr><td><code>topic</code></td><td>Khớp theo mẫu với các đoạn cách nhau bằng dấu chấm: <code>*</code> đúng một đoạn, <code>#</code> không hoặc nhiều đoạn</td><td>Sự kiện domain: <code>order.created</code>, <code>order.*</code>, <code>shop.#</code></td></tr>
+<tr><td><code>headers</code></td><td>Khớp theo header; <code>x-match</code> = <code>all</code> hoặc <code>any</code></td><td>Định tuyến theo nhiều thuộc tính</td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr><th>Binding (exchange topic)</th><th><code>order.created</code></th><th><code>order.paid.vn</code></th><th><code>order</code></th></tr></thead>
+<tbody>
+<tr><td><code>order.*</code></td><td>khớp</td><td>không</td><td>không</td></tr>
+<tr><td><code>order.#</code></td><td>khớp</td><td>khớp</td><td>khớp</td></tr>
+<tr><td><code>*.paid.*</code></td><td>không</td><td>khớp</td><td>không</td></tr>
+</tbody></table></div>
+<ul>
+  <li><strong>Default exchange</strong> (tên rỗng <code>""</code>): mọi queue tự bind với key = tên queue. <code>publish('', 'jobs', msg)</code> nghĩa là "gửi thẳng vào queue jobs".</li>
+  <li>Message không khớp binding nào sẽ bị bỏ. Muốn giữ lại thì cấu hình <strong>alternate exchange</strong>, hoặc publish với cờ <code>mandatory</code> để nhận <code>basic.return</code>.</li>
+  <li>Exchange có thể bind sang exchange khác (exchange-to-exchange) để dựng cây định tuyến.</li>
+</ul>
+</section>
+
+<section class="doc" id="r-queue" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Ba loại queue</h2>
+<div class="table-wrap"><table>
+<thead><tr><th></th><th>Classic</th><th>Quorum</th><th>Stream</th></tr></thead>
+<tbody>
+<tr><td>Khai báo</td><td>mặc định</td><td><code>x-queue-type: quorum</code></td><td><code>x-queue-type: stream</code></td></tr>
+<tr><td>Sao chép giữa node</td><td>Không</td><td>Có (Raft, cần đa số node)</td><td>Có</td></tr>
+<tr><td>Đọc</td><td>Lấy ra là mất</td><td>Lấy ra là mất</td><td>Không xóa, đọc lại từ offset bất kỳ</td></tr>
+<tr><td>DLX, TTL, priority</td><td>Có</td><td>Có (priority từ 4.3)</td><td>Không, dùng retention</td></tr>
+<tr><td>Hợp với</td><td>Queue tạm, exclusive, tạo/xóa liên tục</td><td>Dữ liệu quan trọng, cần HA (lựa chọn mặc định cho production)</td><td>Thông lượng rất cao, fan-out lớn, replay</td></tr>
+</tbody></table></div>
+<p>Thuộc tính khi khai báo queue: <code>durable</code> (còn sau khi broker khởi động lại), <code>exclusive</code> (chỉ một connection, tự xóa khi connection đóng), <code>auto-delete</code> (xóa khi consumer cuối hủy). Khai báo lại queue với thuộc tính khác sẽ bị lỗi <code>406 PRECONDITION_FAILED</code>.</p>
+<div class="note tip"><span class="nt">Policy hơn x-arguments</span><p>Các tham số đổi được (TTL, max-length, DLX, delivery-limit) nên đặt bằng <strong>policy</strong> trên broker thay vì hard-code <code>x-arguments</code> trong code: đổi policy không cần xóa queue. Riêng <code>x-queue-type</code>, <code>x-max-priority</code>, <code>x-single-active-consumer</code> chỉ đặt được lúc khai báo.</p></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">rabbitmqctl set_policy orders-dlx "^orders\." \
+  '{"dead-letter-exchange":"orders.dlx","delivery-limit":5,"max-length":1000000,"overflow":"reject-publish"}' \
+  --apply-to quorum_queues</code></pre></div>
+</section>
+
+<section class="doc" id="r-reliability" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Độ tin cậy: confirm, ack, prefetch</h2>
+<p>Không mất message cần đủ ba thứ: queue <strong>durable</strong> (hoặc quorum) + message <strong>persistent</strong>, <strong>publisher confirm</strong> ở phía gửi, và <strong>manual ack</strong> ở phía nhận.</p>
+<h3>Publisher confirms</h3>
+<p>Bật <code>confirm.select</code> trên channel; broker gửi <code>basic.ack</code> khi mọi queue đích đã nhận message (với quorum queue là khi đa số replica đã ghi). <code>basic.nack</code> từ broker nghĩa là message không được nhận, producer phải gửi lại. Confirm có thể về không theo thứ tự publish.</p>
+<h3>Consumer acknowledgements</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Lệnh</th><th>Ý nghĩa</th></tr></thead>
+<tbody>
+<tr><td><code>basic.ack(tag, multiple)</code></td><td>Xử lý xong, xóa message. <code>multiple=true</code> ack mọi tag ≤ tag này trên channel.</td></tr>
+<tr><td><code>basic.nack(tag, multiple, requeue)</code></td><td>Từ chối. <code>requeue=true</code>: trả lại queue; <code>false</code>: đẩy sang DLX nếu có, không thì bỏ.</td></tr>
+<tr><td><code>basic.reject(tag, requeue)</code></td><td>Như nack nhưng một message.</td></tr>
+</tbody></table></div>
+<ul>
+  <li>Channel/connection đóng khi còn message chưa ack thì các message đó được trả về queue với cờ <code>redelivered</code>. Vì vậy consumer luôn có thể nhận trùng (at-least-once).</li>
+  <li>Delivery tag gắn với channel: ack trên channel khác hoặc ack hai lần sẽ làm channel bị đóng.</li>
+  <li>Auto-ack ("fire and forget") mất message khi consumer chết giữa chừng; chỉ dùng cho dữ liệu không quan trọng.</li>
+</ul>
+<h3>Prefetch (basic.qos)</h3>
+<p><code>prefetch_count</code> giới hạn số message đã giao mà chưa ack cho mỗi consumer. Docs gợi ý <strong>100–300</strong> cho thông lượng tốt; <code>1</code> an toàn nhất nhưng chậm; hàng nghìn dễ làm consumer tràn RAM. Quorum queue giới hạn tối đa 2.000. Với việc xử lý lâu (gọi API ngoài vài giây), đặt nhỏ (10–50) để chia đều giữa các consumer.</p>
+</section>
+
+<section class="doc" id="r-dlx" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Dead letter, TTL, giới hạn độ dài, retry</h2>
+<p>Message bị "dead-letter" (chuyển sang <strong>DLX</strong>) khi: bị <code>nack/reject</code> với <code>requeue=false</code>, hết TTL, queue vượt độ dài (overflow <code>drop-head</code>), hoặc quorum queue vượt <code>delivery-limit</code>. Hết hạn cả queue (<code>x-expires</code>) thì không dead-letter.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Tham số (x-arg / policy)</th><th>Tác dụng</th></tr></thead>
+<tbody>
+<tr><td><code>x-dead-letter-exchange</code> / <code>dead-letter-exchange</code></td><td>Exchange nhận message chết</td></tr>
+<tr><td><code>x-dead-letter-routing-key</code></td><td>Đổi routing key khi dead-letter (mặc định giữ key gốc)</td></tr>
+<tr><td><code>x-message-ttl</code> / <code>message-ttl</code></td><td>TTL message (ms). Thuộc tính <code>expiration</code> đặt cho từng message; lấy giá trị nhỏ hơn.</td></tr>
+<tr><td><code>x-expires</code></td><td>Xóa queue nếu không được dùng trong N ms</td></tr>
+<tr><td><code>x-max-length</code>, <code>x-max-length-bytes</code>, <code>x-overflow</code></td><td>Giới hạn; overflow = <code>drop-head</code> (mặc định), <code>reject-publish</code>, <code>reject-publish-dlx</code> (classic)</td></tr>
+<tr><td><code>x-delivery-limit</code> (quorum)</td><td>Giao quá N lần thì dead-letter. Mặc định 20.</td></tr>
+<tr><td><code>dead-letter-strategy: at-least-once</code> (policy, quorum)</td><td>Không mất message khi dead-letter (mặc định là at-most-once). Cần <code>overflow: reject-publish</code>.</td></tr>
+<tr><td><code>x-delayed-retry-type/min/max</code> (quorum, 4.3+)</td><td>Trả lại queue sau một khoảng chờ tăng dần: <code>min(min × delivery_count, max)</code></td></tr>
+</tbody></table></div>
+<p>Message chết mang header <code>x-death</code> (lý do: <code>rejected</code>, <code>expired</code>, <code>maxlen</code>, <code>delivery_limit</code>; số lần; queue gốc), rất hữu ích để debug và đếm số lần retry.</p>
+</section>
+
+<section class="doc" id="r-other" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Single active consumer, priority, streams</h2>
+<ul>
+  <li><strong>Single active consumer</strong> (<code>x-single-active-consumer: true</code>): nhiều consumer đăng ký nhưng chỉ một nhận message, các consumer khác chờ thay thế khi nó chết. Giữ được thứ tự xử lý mà vẫn có dự phòng.</li>
+  <li><strong>Priority</strong>: classic cần <code>x-max-priority</code> (docs khuyên 2–4 mức); quorum từ 4.3 có sẵn 32 mức (0–31), message không đặt priority được tính là 4. Priority nghiêm ngặt có thể làm message ưu tiên thấp bị "đói".</li>
+  <li><strong>Stream</strong>: khai báo <code>x-queue-type: stream</code>, retention bằng <code>x-max-age</code> (ví dụ <code>7D</code>) và <code>x-max-length-bytes</code>; consumer chọn vị trí đọc bằng <code>x-stream-offset</code> (<code>first</code>, <code>last</code>, <code>next</code>, số offset, timestamp). Super stream chia stream thành nhiều partition giống Kafka.</li>
+</ul>
+</section>
+
+<section class="doc" id="r-nest" data-group="Sử dụng"><p class="group-label">Sử dụng</p>
+<h2>Dùng trong NestJS</h2>
+<h3>Cách 1: @golevelup/nestjs-rabbitmq <span class="badge b-pkg">lib</span></h3>
+<p>Linh hoạt nhất cho exchange/routing key kiểu topic; đây là thư viện service <code>api/</code> của bạn đang dùng.</p>
+<div class="code has-file"><span class="file">src/rabbit/rabbit.module.ts</span><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
+
+@Module({
+  imports: [
+    RabbitMQModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (c: ConfigService) =&gt; ({
+        uri: c.getOrThrow('AMQP_URL'),
+        exchanges: [
+          { name: 'fraud', type: 'topic' },
+          { name: 'fraud.dlx', type: 'topic' },
+        ],
+        channels: { main: { prefetchCount: 50, default: true } },
+        connectionInitOptions: { wait: false },   // không chặn khởi động khi broker chưa sẵn sàng
+        enableControllerDiscovery: true,
+      }),
+    }),
+  ],
+  providers: [OrderConsumer, OrderPublisher],
+})
+export class RabbitModule {}</code></pre></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">import { AmqpConnection, Nack, RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
+import { ConsumeMessage } from 'amqplib';
+
+@Injectable()
+export class OrderConsumer {
+  private readonly logger = new Logger(OrderConsumer.name);
+
+  @RabbitSubscribe({
+    exchange: 'fraud',
+    routingKey: ['order.created', 'order.updated'],
+    queue: 'risk.orders',
+    queueOptions: {
+      durable: true,
+      arguments: { 'x-queue-type': 'quorum', 'x-dead-letter-exchange': 'fraud.dlx', 'x-delivery-limit': 5 },
+    },
+  })
+  async handle(msg: OrderEvent, raw: ConsumeMessage) {
+    try {
+      await this.risk.score(msg);
+      // trả về undefined → thư viện ack
+    } catch (e) {
+      this.logger.error(`order ${msg.orderId} failed`, e as Error);
+      return new Nack(false);          // không requeue → sang DLX
+    }
+  }
+}
+
+@Injectable()
+export class OrderPublisher {
+  constructor(private readonly amqp: AmqpConnection) {}
+
+  created(order: OrderEvent) {
+    return this.amqp.publish('fraud', 'order.created', order, {
+      persistent: true,
+      messageId: `order.created:${order.orderId}`,   // để consumer chống trùng
+      contentType: 'application/json',
+    });
+  }
+}</code></pre></div>
+<h3>Cách 2: @nestjs/microservices (Transport.RMQ)</h3>
+<p>Có sẵn trong Nest, cấu hình đơn giản nhưng mỗi microservice gắn với một queue và ít kiểm soát exchange hơn. Ví dụ đầy đủ ở tab NestJS, mục <a href="#microservices">Microservices</a>.</p>
+</section>
+
+<section class="doc" id="r-java" data-group="Sử dụng"><p class="group-label">Sử dụng</p>
+<h2>Dùng trong Java</h2>
+<h3>Java client chính thức (com.rabbitmq:amqp-client) <span class="badge b-pkg">lib</span></h3>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">ConnectionFactory f = new ConnectionFactory();
+f.setUri(System.getenv("AMQP_URL"));
+f.setAutomaticRecoveryEnabled(true);                  // tự kết nối lại khi mất mạng
+
+Connection conn = f.newConnection("risk-service");    // dùng lâu dài, không mở/đóng liên tục
+Channel ch = conn.createChannel();                    // channel KHÔNG thread-safe: mỗi thread một channel
+
+ch.exchangeDeclare("fraud", BuiltinExchangeType.TOPIC, true);
+ch.queueDeclare("risk.orders", true, false, false,
+    Map.of("x-queue-type", "quorum", "x-dead-letter-exchange", "fraud.dlx"));
+ch.queueBind("risk.orders", "fraud", "order.*");
+
+// consumer: manual ack
+ch.basicQos(50);
+DeliverCallback onMessage = (tag, delivery) -&gt; {
+    long deliveryTag = delivery.getEnvelope().getDeliveryTag();
+    try {
+        handle(new String(delivery.getBody(), StandardCharsets.UTF_8));
+        ch.basicAck(deliveryTag, false);
+    } catch (Exception e) {
+        ch.basicNack(deliveryTag, false, false);      // sang DLX
+    }
+};
+ch.basicConsume("risk.orders", false, onMessage, consumerTag -&gt; { });</code></pre></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">// publisher confirms
+Channel pub = conn.createChannel();
+pub.confirmSelect();
+AMQP.BasicProperties props = new AMQP.BasicProperties.Builder()
+    .contentType("application/json")
+    .deliveryMode(2)                                  // persistent
+    .messageId("order.created:" + orderId)
+    .build();
+pub.basicPublish("fraud", "order.created", props, json.getBytes(StandardCharsets.UTF_8));
+pub.waitForConfirmsOrDie(5_000);                      // đơn giản; thông lượng cao thì dùng addConfirmListener</code></pre></div>
+<h3>Spring AMQP</h3>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">@Configuration
+class RabbitConfig {
+    @Bean TopicExchange fraud() { return new TopicExchange("fraud"); }
+    @Bean Queue riskOrders() {
+        return QueueBuilder.durable("risk.orders").quorum().deadLetterExchange("fraud.dlx").deliveryLimit(5).build();
+    }
+    @Bean Binding bind(Queue riskOrders, TopicExchange fraud) {
+        return BindingBuilder.bind(riskOrders).to(fraud).with("order.*");
+    }
+    @Bean MessageConverter json() { return new Jackson2JsonMessageConverter(); }
+}
+
+@Component
+class OrderListener {
+    @RabbitListener(queues = "risk.orders", concurrency = "4-8")
+    void on(OrderEvent event) { risk.score(event); }   // ném exception → nack (cấu hình default-requeue-rejected=false)
+}
+
+rabbitTemplate.convertAndSend("fraud", "order.created", event);</code></pre></div>
+</section>
+
+<section class="doc" id="r-p-work" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Work queue và Publish/Subscribe</h2>
+<h3>Work queue (competing consumers)</h3>
+<p>Nhiều consumer cùng đọc một queue: mỗi message chỉ một consumer nhận, tải tự chia đều. Muốn tăng tốc thì thêm consumer. Đặt prefetch nhỏ để consumer chậm không ôm nhiều việc.</p>
+<h3>Publish/Subscribe</h3>
+<p>Mỗi service có <strong>queue riêng</strong> bind vào cùng một exchange; một sự kiện được copy tới mọi service quan tâm, và trong mỗi service lại là work queue.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-plaintext">                           ┌── binding order.* ──► queue risk.orders      ► risk-service ×3
+order.created ► [fraud] ───┼── binding order.# ──► queue analytics.orders ► analytics ×1
+   (topic)                 └── binding *.created ► queue audit.created    ► audit ×1</code></pre></div>
+<p>Đặt tên queue theo <code>&lt;service&gt;.&lt;mục đích&gt;</code> và routing key theo <code>&lt;thực thể&gt;.&lt;sự kiện&gt;</code> giúp đọc topology dễ dàng.</p>
+</section>
+
+<section class="doc" id="r-p-retry" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Retry có độ trễ và parking lot</h2>
+<p>Lỗi tạm thời (API ngoài 503) cần thử lại sau một lúc; lỗi vĩnh viễn (dữ liệu sai) cần đưa ra chỗ riêng để người xem. Không bao giờ <code>nack(requeue=true)</code> ngay lập tức: message sẽ quay vòng liên tục và làm nghẽn queue.</p>
+<h3>Cách 1: quorum queue delayed retry (4.3+)</h3>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">rabbitmqctl set_policy risk-retry "^risk\." \
+  '{"delayed-retry-type":"failed","delayed-retry-min":1000,"delayed-retry-max":60000,"delivery-limit":6,"dead-letter-exchange":"fraud.parking"}' \
+  --apply-to quorum_queues
+# consumer chỉ cần nack(requeue=true): broker tự giữ lại 1s, 2s, 3s… tối đa 60s; quá 6 lần → parking</code></pre></div>
+<h3>Cách 2: retry queue có TTL (chạy được mọi phiên bản)</h3>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-plaintext">risk.orders ──nack──► [fraud.retry] ─► risk.orders.retry.10s (x-message-ttl=10000,
+     ▲                                     x-dead-letter-exchange=fraud,
+     └──────────── hết TTL quay về ────────  x-dead-letter-routing-key=order.created)
+consumer đọc x-death count ≥ 5 ──► publish sang risk.orders.parking rồi ack</code></pre></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">const deaths = (raw.properties.headers?.['x-death'] as Array&lt;{ count: number }&gt; | undefined) ?? [];
+const attempts = deaths.reduce((n, d) =&gt; n + d.count, 0);
+
+if (isPermanent(err) || attempts &gt;= 5) {
+  await this.amqp.publish('fraud.parking', raw.fields.routingKey, msg, { headers: { error: String(err) } });
+  return;                                  // ack bản gốc
+}
+return new Nack(false);                    // sang retry queue, quay lại sau TTL</code></pre></div>
+</section>
+
+<section class="doc" id="r-p-idem" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Idempotent consumer và thứ tự</h2>
+<p>RabbitMQ giao <strong>at-least-once</strong>: consumer phải chịu được message trùng. Gắn <code>messageId</code> ổn định ở producer, lưu lại id đã xử lý ở consumer.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">async handle(msg: OrderEvent, raw: ConsumeMessage) {
+  const id = raw.properties.messageId;
+  const first = await this.redis.set(`processed:${id}`, '1', 'EX', 7 * 86_400, 'NX');
+  if (!first) return;                       // đã xử lý, ack luôn
+  try {
+    await this.risk.score(msg);
+  } catch (e) {
+    await this.redis.del(`processed:${id}`); // cho phép thử lại
+    return new Nack(false);
+  }
+}</code></pre></div>
+<p>Cách bền hơn: ghi id vào DB cùng transaction với kết quả (unique index), hoặc thiết kế thao tác tự nhiên idempotent (upsert theo khóa nghiệp vụ).</p>
+<h3>Giữ thứ tự</h3>
+<ul>
+  <li>Một queue + một consumer giữ thứ tự; nhiều consumer hoặc requeue làm mất thứ tự.</li>
+  <li>Cần thứ tự theo từng khóa (mỗi shop) mà vẫn song song: dùng <strong>consistent hash exchange</strong> (plugin) chia theo khóa sang N queue, mỗi queue bật <strong>single active consumer</strong>; hoặc super stream.</li>
+</ul>
+</section>
+
+<section class="doc" id="r-p-rpc" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>RPC qua RabbitMQ</h2>
+<p>Client gửi request kèm <code>replyTo</code> (queue trả lời) và <code>correlationId</code>; server xử lý rồi publish kết quả vào <code>replyTo</code>. Dùng khi cần request/response qua broker (cân bằng tải tự nhiên, không cần service discovery). Phải luôn có timeout.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">// @golevelup: phía server
+@RabbitRPC({ exchange: 'fraud', routingKey: 'risk.score', queue: 'risk.rpc' })
+score(req: { orderId: string }) {
+  return this.risk.score(req.orderId);                 // giá trị trả về được gửi về replyTo
+}
+
+// phía client
+const res = await this.amqp.request&lt;{ score: number }&gt;({
+  exchange: 'fraud', routingKey: 'risk.score', payload: { orderId }, timeout: 5_000,
+});</code></pre></div>
+<p>Với Spring: <code>rabbitTemplate.convertSendAndReceive(...)</code>. Nếu hai service đều online và cần gọi đồng bộ, HTTP/gRPC thường đơn giản hơn RPC qua broker.</p>
+</section>
+
+<section class="doc" id="r-checklist" data-group="Tra cứu"><p class="group-label">Tra cứu</p>
+<h2>Checklist production</h2>
+<ul>
+  <li>Cụm số node lẻ (3, 5); <code>cluster_partition_handling = pause_minority</code>.</li>
+  <li>Dùng quorum queue cho dữ liệu quan trọng; chỉ khai báo queue durable hoặc exclusive.</li>
+  <li>Bật publisher confirm + manual ack; message persistent.</li>
+  <li>Prefetch khoảng 100–300 (nhỏ hơn cho việc xử lý lâu).</li>
+  <li>Mọi queue nghiệp vụ có DLX và giới hạn độ dài; cấu hình bằng policy.</li>
+  <li>Connection dùng lâu dài, tách connection publish và consume; mỗi thread một channel; bật tự kết nối lại.</li>
+  <li>Xóa user <code>guest</code>, mỗi ứng dụng một user, mỗi môi trường một vhost; bật TLS.</li>
+  <li><code>vm_memory_high_watermark.relative</code> 0.4–0.7; <code>disk_free_limit</code> đặt cỡ bằng mức watermark bộ nhớ (mặc định 50MB chỉ hợp dev).</li>
+  <li>Giám sát độ dài queue, số message chưa ack, tốc độ publish/deliver/ack (Prometheus plugin).</li>
+</ul>
+<h3>Nguồn</h3>
+<ul>
+  <li><a href="https://www.rabbitmq.com/docs" target="_blank" rel="noopener">rabbitmq.com/docs</a> · <a href="https://www.rabbitmq.com/tutorials" target="_blank" rel="noopener">7 tutorial chính thức</a></li>
+  <li><a href="https://www.rabbitmq.com/docs/quorum-queues" target="_blank" rel="noopener">Quorum queues</a> · <a href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">Dead letter</a> · <a href="https://www.rabbitmq.com/docs/production-checklist" target="_blank" rel="noopener">Production checklist</a></li>
+  <li><a href="https://github.com/golevelup/nestjs/tree/master/packages/rabbitmq" target="_blank" rel="noopener">@golevelup/nestjs-rabbitmq</a> · <a href="https://docs.spring.io/spring-amqp/reference/" target="_blank" rel="noopener">Spring AMQP</a></li>
+</ul>
+</section>
+</div>
+<div class="panel" data-panel="kafka" role="tabpanel" aria-labelledby="tab-kafka" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Tổng hợp từ kafka.apache.org (bản 4.4)</p>
+  <h1>Sổ tay Kafka</h1>
+  <p class="lead">Nền tảng event streaming dạng log phân tán: topic, partition, consumer group, các mức đảm bảo giao nhận, transaction và share group. Có ví dụ cho NestJS, Java client, Spring Kafka, Kafka Streams và các pattern thường gặp.</p>
+  <div class="stats"><span><b>16</b> chủ đề</span><span><b>15</b> ví dụ code</span><span>Bản mới nhất <b>4.4.0</b> (22/10/2026)</span></div>
+</div>
+
+<section class="doc" id="k-tong-quan" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Kafka là gì</h2>
+<p>Kafka lưu sự kiện vào các <strong>log chỉ ghi nối</strong> (append-only), chia partition và sao chép trên nhiều broker. Khác message broker truyền thống, message <strong>không bị xóa khi đọc</strong>: mỗi consumer group tự giữ vị trí (offset) của mình, nhiều hệ thống đọc cùng dữ liệu độc lập, và có thể đọc lại từ quá khứ trong thời gian retention.</p>
+<h3>Thay đổi ở 4.x</h3>
+<ul>
+  <li><strong>4.0</strong>: bỏ ZooKeeper, chỉ chạy <strong>KRaft</strong> (controller dùng Raft). Giao thức rebalance mới cho consumer (KIP-848) chính thức, client bật bằng <code>group.protocol=consumer</code>. <code>linger.ms</code> mặc định đổi từ 0 thành 5. Broker cần Java 17; client cần Java 11 trở lên.</li>
+  <li><strong>4.1</strong>: share group (Queues for Kafka, KIP-932) ở dạng preview.</li>
+  <li><strong>4.2</strong>: share group sẵn sàng cho production; giao thức rebalance mới cho Kafka Streams (KIP-1071).</li>
+  <li><strong>4.4</strong>: share group có dead-letter queue (KIP-1191); <code>broker.id</code> deprecated, dùng <code>node.id</code>.</li>
+</ul>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">docker run -d --name kafka -p 9092:9092 apache/kafka:4.4.0
+
+# hoặc chạy từ bản tải về (KRaft)
+KAFKA_CLUSTER_ID="$(bin/kafka-storage.sh random-uuid)"
+bin/kafka-storage.sh format --standalone -t $KAFKA_CLUSTER_ID -c config/server.properties
+bin/kafka-server-start.sh config/server.properties</code></pre></div>
+</section>
+
+<section class="doc" id="k-concepts" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Topic, partition, offset, consumer group</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Khái niệm</th><th>Giải thích</th></tr></thead>
+<tbody>
+<tr><td>Record</td><td>Một sự kiện: key, value, timestamp, headers.</td></tr>
+<tr><td>Topic</td><td>Luồng sự kiện cùng loại, ví dụ <code>orders.created</code>.</td></tr>
+<tr><td>Partition</td><td>Topic chia thành N log độc lập. Đơn vị song song và đơn vị <strong>đảm bảo thứ tự</strong>. Record cùng key luôn vào cùng partition.</td></tr>
+<tr><td>Offset</td><td>Số thứ tự của record trong partition. Vị trí của consumer = offset của record tiếp theo cần đọc.</td></tr>
+<tr><td>Replication factor</td><td>Số bản sao mỗi partition (production thường là 3). Một bản là <strong>leader</strong>, còn lại là follower.</td></tr>
+<tr><td>ISR</td><td>Các replica đang theo kịp leader. Record "committed" khi mọi ISR đã có.</td></tr>
+<tr><td>Consumer group</td><td>Nhóm consumer chia nhau partition: mỗi partition chỉ một consumer trong group đọc tại một thời điểm.</td></tr>
+<tr><td>Rebalance</td><td>Chia lại partition khi consumer vào/ra group. Consumer mới tiếp tục từ offset đã commit.</td></tr>
+</tbody></table></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-plaintext">topic orders.created (3 partition)          consumer group "risk"        consumer group "analytics"
+  P0: [0][1][2][3][4] ─────────────────────►  consumer A (P0, P1)      ─► consumer X (P0, P1, P2)
+  P1: [0][1][2]       ─────────────────────►
+  P2: [0][1][2][3]    ─────────────────────►  consumer B (P2)
+  mỗi group giữ offset riêng → cùng dữ liệu, hai hệ thống đọc độc lập</code></pre></div>
+<div class="note warn"><span class="nt">Số partition</span><p>Số consumer hoạt động trong một group tối đa bằng số partition; consumer thừa sẽ ngồi chơi. Tăng partition sau này làm thay đổi ánh xạ key → partition (mất thứ tự theo key với dữ liệu cũ), nên hãy chọn dư ngay từ đầu.</p></div>
+</section>
+
+<section class="doc" id="k-producer" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Producer</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Config</th><th>Mặc định</th><th>Ý nghĩa</th></tr></thead>
+<tbody>
+<tr><td><code>acks</code></td><td><code>all</code></td><td><code>0</code>: không chờ; <code>1</code>: leader ghi xong; <code>all</code>: mọi ISR ghi xong</td></tr>
+<tr><td><code>enable.idempotence</code></td><td><code>true</code></td><td>Retry không tạo bản ghi trùng (producer id + sequence)</td></tr>
+<tr><td><code>retries</code> / <code>delivery.timeout.ms</code></td><td>2147483647 / 120000</td><td>Retry tới khi hết thời gian giao</td></tr>
+<tr><td><code>linger.ms</code> / <code>batch.size</code></td><td>5 / 16384</td><td>Đợi gom batch; tăng để thông lượng cao hơn</td></tr>
+<tr><td><code>compression.type</code></td><td><code>none</code></td><td><code>gzip</code>, <code>snappy</code>, <code>lz4</code>, <code>zstd</code></td></tr>
+<tr><td><code>max.in.flight.requests.per.connection</code></td><td>5</td><td>≤ 5 để idempotence giữ thứ tự</td></tr>
+<tr><td><code>transactional.id</code></td><td>null</td><td>Bật transaction (xem <a href="#k-semantics">Exactly-once</a>)</td></tr>
+</tbody></table></div>
+<p>Partitioner mặc định: có key thì băm key (cùng key → cùng partition → giữ thứ tự); không key thì gom batch vào một partition rồi chuyển sang partition khác ("sticky").</p>
+</section>
+
+<section class="doc" id="k-consumer" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Consumer và commit offset</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Config</th><th>Mặc định</th><th>Ghi chú</th></tr></thead>
+<tbody>
+<tr><td><code>group.id</code></td><td>null</td><td>Bắt buộc khi dùng consumer group</td></tr>
+<tr><td><code>group.protocol</code></td><td><code>classic</code></td><td><code>consumer</code> = giao thức KIP-848, rebalance nhanh và ít gián đoạn hơn</td></tr>
+<tr><td><code>auto.offset.reset</code></td><td><code>latest</code></td><td>Khi chưa có offset: <code>earliest</code>, <code>latest</code>, <code>none</code>, <code>by_duration:P1D</code></td></tr>
+<tr><td><code>enable.auto.commit</code></td><td><code>true</code></td><td>Tự commit định kỳ; tắt để commit sau khi xử lý xong</td></tr>
+<tr><td><code>max.poll.records</code></td><td>500</td><td>Số record mỗi lần poll</td></tr>
+<tr><td><code>max.poll.interval.ms</code></td><td>300000</td><td>Quá thời gian giữa hai lần poll → bị đá khỏi group</td></tr>
+<tr><td><code>isolation.level</code></td><td><code>read_uncommitted</code></td><td><code>read_committed</code> để bỏ qua record của transaction bị hủy</td></tr>
+<tr><td><code>group.instance.id</code></td><td>null</td><td>Static membership: restart nhanh không gây rebalance</td></tr>
+</tbody></table></div>
+<p><strong>Thứ tự xử lý quyết định ngữ nghĩa</strong>: commit <em>trước</em> khi xử lý là at-most-once (có thể mất); xử lý xong <em>rồi</em> commit là at-least-once (có thể trùng, cách phổ biến nhất). Auto-commit thực chất commit offset của lần poll trước, nên vẫn là at-least-once nếu bạn xử lý xong trước lần poll kế tiếp.</p>
+<div class="note warn"><span class="nt">Xử lý chậm</span><p>Nếu một batch mất lâu hơn <code>max.poll.interval.ms</code>, consumer bị coi là chết, partition chuyển cho consumer khác và batch bị xử lý lại. Giảm <code>max.poll.records</code> hoặc tăng interval cho việc nặng.</p></div>
+</section>
+
+<section class="doc" id="k-semantics" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Đảm bảo giao nhận và exactly-once</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Mức</th><th>Cách đạt</th></tr></thead>
+<tbody>
+<tr><td>At-most-once</td><td>Commit offset trước khi xử lý</td></tr>
+<tr><td>At-least-once</td><td>Producer <code>acks=all</code> + idempotence; consumer xử lý xong mới commit; consumer idempotent</td></tr>
+<tr><td>Exactly-once (Kafka → Kafka)</td><td>Transaction: ghi output và commit offset input trong cùng một transaction; consumer đọc với <code>read_committed</code></td></tr>
+</tbody></table></div>
+<p>Exactly-once của Kafka chỉ bao trùm dữ liệu nằm trong Kafka. Khi xử lý có tác động ra ngoài (ghi DB, gọi API), vẫn cần consumer idempotent hoặc lưu offset cùng transaction với DB.</p>
+</section>
+
+<section class="doc" id="k-retention" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Retention, compaction và share group</h2>
+<ul>
+  <li><strong>Retention theo thời gian/dung lượng</strong> (<code>cleanup.policy=delete</code>): xóa segment cũ theo <code>retention.ms</code> / <code>retention.bytes</code> của topic.</li>
+  <li><strong>Log compaction</strong> (<code>cleanup.policy=compact</code>): giữ ít nhất bản ghi mới nhất cho mỗi key. Record value <code>null</code> là <strong>tombstone</strong> (đánh dấu xóa), bị dọn sau <code>delete.retention.ms</code> (mặc định 24 giờ). Dùng cho topic dạng "bảng trạng thái": cấu hình shop, số dư, snapshot.</li>
+  <li>Có thể kết hợp <code>compact,delete</code>.</li>
+</ul>
+<h3>Share group (Queues for Kafka) <span class="badge b-v11">4.2</span></h3>
+<p>Consumer group thường gắn mỗi partition cho một consumer. <strong>Share group</strong> cho phép nhiều consumer cùng đọc một partition, ack từng record và đếm số lần giao, giống work queue của RabbitMQ. Hợp với việc xử lý từng record độc lập mà không cần thứ tự; số consumer không còn bị giới hạn bởi số partition.</p>
+</section>
+
+<section class="doc" id="k-cli" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Lệnh CLI hay dùng</h2>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash"># tạo topic: 6 partition, 3 bản sao, giữ 7 ngày
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic orders.created \
+  --partitions 6 --replication-factor 3 --config retention.ms=604800000
+
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders.created
+
+# gửi/đọc thử
+bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic orders.created \
+  --property parse.key=true --property key.separator=:
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic orders.created \
+  --from-beginning --property print.key=true
+
+# xem lag của consumer group, reset offset
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group risk
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --group risk --topic orders.created \
+  --reset-offsets --to-datetime 2026-11-15T00:00:00.000 --execute
+
+# đổi config topic
+bin/kafka-configs.sh --bootstrap-server localhost:9092 --alter --entity-type topics \
+  --entity-name shop.settings --add-config cleanup.policy=compact</code></pre></div>
+</section>
+
+<section class="doc" id="k-so-sanh" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Chọn RabbitMQ, Kafka hay Redis?</h2>
+<div class="table-wrap"><table>
+<thead><tr><th></th><th>RabbitMQ</th><th>Kafka</th><th>Redis Streams</th><th>Redis Pub/Sub</th></tr></thead>
+<tbody>
+<tr><td>Mô hình</td><td>Queue, xóa khi ack</td><td>Log, giữ theo retention</td><td>Log trong RAM, trim theo MAXLEN</td><td>Phát tức thời, không lưu</td></tr>
+<tr><td>Định tuyến</td><td>Rất linh hoạt (exchange, topic, header)</td><td>Theo topic + key</td><td>Theo stream</td><td>Theo channel/pattern</td></tr>
+<tr><td>Đọc lại quá khứ</td><td>Không (trừ stream)</td><td>Có</td><td>Có (trong giới hạn)</td><td>Không</td></tr>
+<tr><td>Thứ tự</td><td>Theo queue</td><td>Theo partition (key)</td><td>Theo stream</td><td>Không đảm bảo khi mất kết nối</td></tr>
+<tr><td>Retry/DLQ</td><td>Có sẵn (DLX, delivery-limit, delayed retry)</td><td>Tự dựng bằng retry topic (Spring có sẵn)</td><td>Tự dựng bằng XPENDING/XAUTOCLAIM</td><td>Không</td></tr>
+<tr><td>Thông lượng</td><td>Cao</td><td>Rất cao, scale ngang theo partition</td><td>Cao, giới hạn bởi RAM</td><td>Rất cao</td></tr>
+<tr><td>Hợp nhất với</td><td>Task queue, sự kiện nghiệp vụ, RPC</td><td>Event streaming, CDC, analytics, event sourcing</td><td>Queue nhẹ khi đã có Redis</td><td>Thông báo realtime, invalidate cache</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="k-nest" data-group="Sử dụng"><p class="group-label">Sử dụng</p>
+<h2>Dùng trong NestJS</h2>
+<p><code>@nestjs/microservices</code> có <code>Transport.KAFKA</code> dựa trên thư viện <code>kafkajs</code>. Lưu ý KafkaJS ít được bảo trì gần đây; Confluent phát hành <code>@confluentinc/kafka-javascript</code> có API tương thích KafkaJS nếu bạn cần client được hỗ trợ chính thức.</p>
+<div class="code has-file"><span class="file">src/main.ts</span><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">const app = await NestFactory.create(AppModule);
+app.connectMicroservice&lt;MicroserviceOptions&gt;({
+  transport: Transport.KAFKA,
+  options: {
+    client: { clientId: 'risk', brokers: process.env.KAFKA_BROKERS!.split(',') },
+    consumer: { groupId: 'risk', sessionTimeout: 45_000 },
+    run: { autoCommit: false },                // tự commit sau khi xử lý
+    subscribe: { fromBeginning: false },
+  },
+});
+await app.startAllMicroservices();
+await app.listen(3000);</code></pre></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">@Controller()
+export class OrdersConsumer {
+  @EventPattern('orders.created')
+  async onCreated(@Payload() order: OrderEvent, @Ctx() ctx: KafkaContext) {
+    const { offset } = ctx.getMessage();
+    await this.risk.score(order);
+    await ctx.getConsumer().commitOffsets([
+      { topic: ctx.getTopic(), partition: ctx.getPartition(), offset: (BigInt(offset) + 1n).toString() },
+    ]);
+  }
+}
+
+// producer
+@Module({
+  imports: [ClientsModule.register([{
+    name: 'KAFKA',
+    transport: Transport.KAFKA,
+    options: { client: { clientId: 'api', brokers: ['localhost:9092'] }, producerOnlyMode: true },
+  }])],
+})
+export class EventsModule {}
+
+@Injectable()
+export class OrderEvents implements OnModuleInit {
+  constructor(@Inject('KAFKA') private readonly kafka: ClientKafka) {}   // Nest 12 đổi tên thành ClientKafkaProxy
+  async onModuleInit() { await this.kafka.connect(); }
+
+  created(order: OrderEvent) {
+    // key = shop → mọi sự kiện của một shop vào cùng partition, giữ thứ tự
+    return this.kafka.emit('orders.created', { key: order.shop, value: JSON.stringify(order) });
+  }
+}</code></pre></div>
+</section>
+
+<section class="doc" id="k-java" data-group="Sử dụng"><p class="group-label">Sử dụng</p>
+<h2>Dùng trong Java</h2>
+<h3>kafka-clients <span class="badge b-pkg">lib</span></h3>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">Properties p = new Properties();
+p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+p.put(ProducerConfig.ACKS_CONFIG, "all");
+p.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "zstd");
+p.put(ProducerConfig.LINGER_MS_CONFIG, 20);
+
+KafkaProducer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(p);     // thread-safe, dùng chung
+producer.send(new ProducerRecord&lt;&gt;("orders.created", order.shop(), json), (meta, ex) -&gt; {
+    if (ex != null) log.error("send failed", ex);
+    else log.debug("p{}@{}", meta.partition(), meta.offset());
+});</code></pre></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">Properties c = new Properties();
+c.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+c.put(ConsumerConfig.GROUP_ID_CONFIG, "risk");
+c.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, "consumer");             // giao thức rebalance mới
+c.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+c.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+c.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+c.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+
+try (var consumer = new KafkaConsumer&lt;String, String&gt;(c)) {           // KHÔNG thread-safe: một thread một consumer
+    consumer.subscribe(List.of("orders.created"));
+    while (running) {
+        ConsumerRecords&lt;String, String&gt; records = consumer.poll(Duration.ofMillis(500));
+        for (ConsumerRecord&lt;String, String&gt; r : records) {
+            risk.score(r.key(), r.value());
+        }
+        consumer.commitSync();                                       // at-least-once
+    }
+}
+// dừng an toàn từ thread khác: consumer.wakeup() → poll ném WakeupException</code></pre></div>
+<h3>Spring Kafka</h3>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">@Component
+class OrderListener {
+    @KafkaListener(topics = "orders.created", groupId = "risk", concurrency = "3")
+    void on(ConsumerRecord&lt;String, OrderEvent&gt; record) {
+        risk.score(record.value());
+    }
+}
+
+kafkaTemplate.send("orders.created", event.shop(), event);   // KafkaTemplate&lt;String, OrderEvent&gt;</code></pre></div>
+<h3>Kafka Streams</h3>
+<p>Thư viện xử lý luồng chạy ngay trong ứng dụng Java (không cần cluster riêng): filter, join, aggregate, window, có state store và exactly-once.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">StreamsBuilder b = new StreamsBuilder();
+b.stream("orders.created", Consumed.with(Serdes.String(), orderSerde))      // key = shop
+ .filter((shop, order) -&gt; order.flagged())
+ .groupByKey()
+ .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofMinutes(5)))
+ .count()
+ .toStream((windowedShop, count) -&gt; windowedShop.key())
+ .filter((shop, count) -&gt; count &gt;= 10)
+ .to("alerts.fraud-burst", Produced.with(Serdes.String(), Serdes.Long()));
+
+Properties s = new Properties();
+s.put(StreamsConfig.APPLICATION_ID_CONFIG, "fraud-burst-detector");
+s.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+s.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE_V2);
+new KafkaStreams(b.build(), s).start();</code></pre></div>
+</section>
+
+<section class="doc" id="k-p-key" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Chọn key và thiết kế topic</h2>
+<ul>
+  <li><strong>Key = thực thể cần giữ thứ tự</strong>: <code>orderId</code>, <code>shop</code>, <code>customerId</code>. Mọi sự kiện của cùng thực thể vào cùng partition, xử lý tuần tự.</li>
+  <li>Tránh key quá "nóng" (một shop chiếm 50% traffic) gây lệch tải partition. Có thể ghép key: <code>shop:orderId</code> khi chỉ cần thứ tự theo đơn.</li>
+  <li>Đặt tên topic theo <code>&lt;domain&gt;.&lt;sự kiện&gt;</code> hoặc <code>&lt;domain&gt;.&lt;thực thể&gt;.v1</code>; đổi schema không tương thích thì tạo topic phiên bản mới.</li>
+  <li>Dùng schema (Avro/Protobuf/JSON Schema + Schema Registry) để producer và consumer tiến hóa độc lập mà không làm vỡ nhau.</li>
+  <li>Sự kiện nên tự đủ thông tin (event-carried state) để consumer không phải gọi ngược lại service gốc.</li>
+</ul>
+</section>
+
+<section class="doc" id="k-p-retry" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Retry topic và dead-letter topic</h2>
+<p>Kafka không có nack/requeue: nếu một record lỗi mà không commit, consumer bị kẹt ở đó và cả partition dừng lại. Giải pháp là chuyển record lỗi sang topic khác và commit để đi tiếp.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-plaintext">orders.created ─lỗi─► orders.created-retry-1 (chờ 1s) ─lỗi─► orders.created-retry-2 (chờ 10s) ─lỗi─► orders.created-dlt
+      ▲                         │                                   │
+      └──── thành công: commit ─┴───────────────────────────────────┘     dlt: lưu lại, cảnh báo, xử lý tay</code></pre></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">// Spring Kafka tự tạo retry topic + DLT
+@RetryableTopic(attempts = "4", backoff = @Backoff(delay = 1000, multiplier = 10),
+                exclude = { ValidationException.class })          // lỗi vĩnh viễn: thẳng sang DLT
+@KafkaListener(topics = "orders.created", groupId = "risk")
+void on(OrderEvent e) { risk.score(e); }
+
+@DltHandler
+void dlt(OrderEvent e, @Header(KafkaHeaders.EXCEPTION_MESSAGE) String error) {
+    alerts.send("DLT: " + e.orderId() + " " + error);
+}</code></pre></div>
+<p>Ở NestJS, tự publish sang topic <code>*.retry</code> / <code>*.dlt</code> kèm header số lần thử và lỗi, rồi commit offset gốc. Retry topic làm mất thứ tự theo key; nếu thứ tự quan trọng, hãy retry tại chỗ vài lần (backoff ngắn) trước khi đẩy sang DLT.</p>
+</section>
+
+<section class="doc" id="k-p-eos" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Consume–transform–produce exactly-once</h2>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">producerProps.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "risk-scorer-" + instanceId);
+consumerProps.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
+consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+
+producer.initTransactions();
+while (running) {
+    var records = consumer.poll(Duration.ofMillis(500));
+    if (records.isEmpty()) continue;
+    producer.beginTransaction();
+    try {
+        Map&lt;TopicPartition, OffsetAndMetadata&gt; offsets = new HashMap&lt;&gt;();
+        for (var r : records) {
+            producer.send(new ProducerRecord&lt;&gt;("orders.scored", r.key(), score(r.value())));
+            offsets.put(new TopicPartition(r.topic(), r.partition()), new OffsetAndMetadata(r.offset() + 1));
+        }
+        producer.sendOffsetsToTransaction(offsets, consumer.groupMetadata());   // commit input cùng output
+        producer.commitTransaction();
+    } catch (ProducerFencedException e) {
+        producer.close();                    // có instance khác cùng transactional.id: dừng
+        throw e;
+    } catch (KafkaException e) {
+        producer.abortTransaction();
+        rewindToCommitted(consumer);         // seek về offset đã commit rồi xử lý lại
+    }
+}</code></pre></div>
+<p>Kafka Streams làm sẵn toàn bộ việc này khi đặt <code>processing.guarantee=exactly_once_v2</code>.</p>
+</section>
+
+<section class="doc" id="k-p-outbox" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Outbox + CDC và idempotent consumer</h2>
+<p>Ghi DB rồi gửi Kafka có thể lệch nhau (dual write). Pattern chuẩn: ghi sự kiện vào bảng/collection <code>outbox</code> trong cùng transaction với dữ liệu; <strong>Debezium</strong> (Kafka Connect) đọc change log của DB (binlog, WAL, MongoDB change stream) và đẩy vào Kafka. Không cần code relay tự viết như ở <a href="#p-outbox">tab NestJS</a>.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-json">{
+  "name": "orders-outbox",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "db", "database.dbname": "shop", "topic.prefix": "shop",
+    "table.include.list": "public.outbox",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.route.by.field": "aggregate_type"
+  }
+}</code></pre></div>
+<p>Phía consumer: at-least-once nên phải chống trùng. Lưu <code>(topic, partition, offset)</code> hoặc <code>eventId</code> vào bảng processed với unique key trong cùng transaction với kết quả xử lý, hoặc dùng upsert theo khóa nghiệp vụ.</p>
+</section>
+
+<section class="doc" id="k-p-state" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Compacted topic làm bảng trạng thái</h2>
+<p>Publish trạng thái mới nhất của mỗi thực thể với key = id vào topic compacted. Service khác đọc topic từ đầu lúc khởi động để dựng cache cục bộ, rồi tiếp tục cập nhật theo sự kiện mới, không cần gọi API service gốc. Kafka Streams gọi đây là <code>KTable</code>/<code>GlobalKTable</code>.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">GlobalKTable&lt;String, ShopSettings&gt; settings =
+    builder.globalTable("shop.settings", Consumed.with(Serdes.String(), settingsSerde));
+
+builder.stream("visits", Consumed.with(Serdes.String(), visitSerde))
+    .join(settings, (visitId, visit) -&gt; visit.shop(),                 // tra cấu hình shop cho mỗi visit
+          (visit, cfg) -&gt; evaluate(visit, cfg))
+    .to("visits.evaluated");</code></pre></div>
+<p>Xóa một thực thể: gửi tombstone (key + value <code>null</code>).</p>
+</section>
+
+<section class="doc" id="k-checklist" data-group="Tra cứu"><p class="group-label">Tra cứu</p>
+<h2>Checklist production</h2>
+<ul>
+  <li>Ít nhất 3 broker; topic quan trọng <code>replication.factor=3</code>, <code>min.insync.replicas=2</code>, producer <code>acks=all</code>.</li>
+  <li>Giữ <code>unclean.leader.election.enable=false</code> (mặc định) để không mất dữ liệu khi failover.</li>
+  <li>Chọn số partition theo thông lượng mục tiêu và số consumer tối đa; khó giảm về sau.</li>
+  <li>Consumer tắt auto-commit cho việc quan trọng, xử lý idempotent, có retry topic + DLT.</li>
+  <li>Theo dõi <strong>consumer lag</strong> theo group/partition; cảnh báo khi lag tăng liên tục.</li>
+  <li>Dùng schema registry; quy định tương thích (BACKWARD) cho từng topic.</li>
+  <li>Bật TLS + SASL, ACL theo từng service; không để <code>auto.create.topics.enable</code> ở production.</li>
+  <li>Client mới dùng <code>group.protocol=consumer</code>; dùng <code>group.instance.id</code> cho deployment rolling ít rebalance.</li>
+</ul>
+<h3>Nguồn</h3>
+<ul>
+  <li><a href="https://kafka.apache.org/quickstart" target="_blank" rel="noopener">Kafka quickstart</a> · <a href="https://kafka.apache.org/community/downloads/" target="_blank" rel="noopener">Downloads</a> · <a href="https://kafka.apache.org/44/design/design/" target="_blank" rel="noopener">Design</a></li>
+  <li><a href="https://kafka.apache.org/44/configuration/producer-configs/" target="_blank" rel="noopener">Producer configs</a> · <a href="https://kafka.apache.org/44/configuration/consumer-configs/" target="_blank" rel="noopener">Consumer configs</a> · <a href="https://kafka.apache.org/44/getting-started/upgrade/" target="_blank" rel="noopener">Upgrade notes 4.x</a></li>
+  <li><a href="https://docs.spring.io/spring-kafka/reference/" target="_blank" rel="noopener">Spring for Apache Kafka</a> · <a href="https://debezium.io/documentation/" target="_blank" rel="noopener">Debezium</a></li>
+</ul>
+</section>
+</div>
+<div class="panel" data-panel="redis" role="tabpanel" aria-labelledby="tab-redis" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Tổng hợp từ redis.io/docs (Redis Open Source 8.x)</p>
+  <h1>Sổ tay Redis</h1>
+  <p class="lead">Kho dữ liệu trong bộ nhớ dùng làm cache, khóa phân tán, rate limit, hàng đợi, bảng xếp hạng. Có kiểu dữ liệu và lệnh, persistence, eviction, cluster, và các pattern kèm ví dụ cho NestJS (ioredis) và Java (Lettuce, Jedis, Spring, Redisson).</p>
+  <div class="stats"><span><b>16</b> chủ đề</span><span><b>21</b> ví dụ code</span><span>Redis Open Source <b>8.x</b></span></div>
+</div>
+
+<section class="doc" id="rd-tong-quan" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Redis là gì</h2>
+<p>Redis lưu dữ liệu trong RAM với cấu trúc dữ liệu phong phú (không chỉ key-value chuỗi), nên mỗi thao tác thường chỉ tốn micro-giây. Lệnh được thực thi tuần tự trên một luồng chính, nên từng lệnh là <strong>nguyên tử</strong>.</p>
+<ul>
+  <li><strong>Redis 8</strong> gộp các tính năng trước đây là module (JSON, Query Engine/Search, time series, kiểu xác suất như Bloom, Top-K, t-digest) và thêm <strong>vector set</strong>. Từ 8.0, Redis Open Source có thêm lựa chọn giấy phép AGPLv3.</li>
+  <li><strong>Valkey</strong> là bản fork mã nguồn mở (giấy phép BSD) do Linux Foundation duy trì, tương thích giao thức với Redis 7.2; client như ioredis, Lettuce dùng được cho cả hai.</li>
+</ul>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">docker run -d --name redis -p 6379:6379 redis:8
+redis-cli ping                 # PONG
+redis-cli --latency            # đo độ trễ
+redis-cli INFO memory</code></pre></div>
+</section>
+
+<section class="doc" id="rd-types" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Kiểu dữ liệu</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Kiểu</th><th>Lệnh chính</th><th>Dùng cho</th></tr></thead>
+<tbody>
+<tr><td>String</td><td><code>SET</code>, <code>GET</code>, <code>INCR</code>, <code>MGET</code></td><td>Cache JSON, bộ đếm, cờ, khóa</td></tr>
+<tr><td>Hash</td><td><code>HSET</code>, <code>HGET</code>, <code>HINCRBY</code>, <code>HGETALL</code></td><td>Object nhiều field (cấu hình shop, session)</td></tr>
+<tr><td>List</td><td><code>LPUSH</code>, <code>RPOP</code>, <code>BLMOVE</code>, <code>LRANGE</code></td><td>Hàng đợi đơn giản, N mục gần nhất</td></tr>
+<tr><td>Set</td><td><code>SADD</code>, <code>SISMEMBER</code>, <code>SINTER</code></td><td>Tập duy nhất: IP bị chặn, tag</td></tr>
+<tr><td>Sorted set</td><td><code>ZADD</code>, <code>ZRANGE</code>, <code>ZINCRBY</code>, <code>ZREMRANGEBYSCORE</code></td><td>Bảng xếp hạng, cửa sổ thời gian, hàng đợi lịch</td></tr>
+<tr><td>Stream</td><td><code>XADD</code>, <code>XREADGROUP</code>, <code>XACK</code></td><td>Log sự kiện có consumer group</td></tr>
+<tr><td>Bitmap / Bitfield</td><td><code>SETBIT</code>, <code>BITCOUNT</code></td><td>Đánh dấu theo ngày, user hoạt động</td></tr>
+<tr><td>HyperLogLog</td><td><code>PFADD</code>, <code>PFCOUNT</code></td><td>Đếm số phần tử khác nhau gần đúng (12KB/khóa)</td></tr>
+<tr><td>Geospatial</td><td><code>GEOADD</code>, <code>GEOSEARCH</code></td><td>Tìm theo bán kính</td></tr>
+<tr><td>JSON</td><td><code>JSON.SET</code>, <code>JSON.GET</code></td><td>Document lồng nhau, sửa từng phần</td></tr>
+<tr><td>Bloom / Cuckoo / Top-K…</td><td><code>BF.ADD</code>, <code>BF.EXISTS</code></td><td>"Đã thấy chưa?" với bộ nhớ nhỏ</td></tr>
+<tr><td>Vector set</td><td><code>VADD</code>, <code>VSIM</code></td><td>Tìm kiếm tương đồng (embedding)</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="rd-commands" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Lệnh cốt lõi</h2>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">SET settings:demo '{"plan":"pro"}' EX 300        # có TTL 300 giây
+SET lock:sync tokenA NX PX 30000                 # chỉ đặt nếu chưa tồn tại (dùng làm khóa)
+SET counter 10 GET                               # đặt và trả giá trị cũ
+INCR visits:2026-11-16                           # nguyên tử
+EXPIRE visits:2026-11-16 172800
+TTL settings:demo                                # còn bao nhiêu giây; -1 không hạn; -2 không tồn tại
+
+SCAN 0 MATCH settings:* COUNT 1000               # duyệt key theo từng đợt; KHÔNG dùng KEYS ở production
+UNLINK big:key                                   # xóa không chặn (giải phóng bộ nhớ ở luồng nền)
+
+HSET shop:demo plan pro country VN
+HEXPIRE shop:demo 3600 FIELDS 1 country          # TTL cho từng field (7.4+)</code></pre></div>
+<h3>Pipeline, transaction, script</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Cơ chế</th><th>Làm gì</th><th>Khi nào</th></tr></thead>
+<tbody>
+<tr><td>Pipeline</td><td>Gửi nhiều lệnh một lượt, giảm round-trip; không nguyên tử</td><td>Ghi/đọc hàng loạt</td></tr>
+<tr><td><code>MULTI</code> / <code>EXEC</code></td><td>Chạy nhóm lệnh liền một mạch; không rollback khi một lệnh lỗi</td><td>Ghi nhiều key cùng lúc</td></tr>
+<tr><td><code>WATCH</code></td><td>Optimistic lock: <code>EXEC</code> thất bại nếu key bị đổi</td><td>Đọc rồi ghi có điều kiện</td></tr>
+<tr><td>Lua <code>EVAL</code> / Functions (<code>FCALL</code>)</td><td>Logic chạy nguyên tử ngay trên server</td><td>Đọc-kiểm tra-ghi phức tạp: rate limit, giải phóng khóa</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="rd-messaging" data-group="Khái niệm"><p class="group-label">Khái niệm</p>
+<h2>Pub/Sub và Streams</h2>
+<p><strong>Pub/Sub</strong>: <code>PUBLISH channel msg</code> gửi tới mọi client đang <code>SUBSCRIBE</code>; client offline là mất. Hợp với tín hiệu tức thời như xóa cache cục bộ trên mọi instance. Trên cluster dùng sharded pub/sub (<code>SPUBLISH</code>/<code>SSUBSCRIBE</code>).</p>
+<p><strong>Streams</strong>: log bền có consumer group, giống Kafka thu nhỏ trong Redis.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">XGROUP CREATE visits writers $ MKSTREAM                    # tạo group, đọc từ message mới
+XADD visits MAXLEN ~ 1000000 * shop demo ip 1.2.3.4         # ~ = cắt gần đúng, nhanh hơn
+XREADGROUP GROUP writers c1 COUNT 100 BLOCK 5000 STREAMS visits &gt;   # &gt; = message chưa giao cho ai
+XACK visits writers 1731722400000-0
+XPENDING visits writers                                     # message đã giao mà chưa ack
+XAUTOCLAIM visits writers c2 60000 0-0 COUNT 100            # lấy lại message treo quá 60s</code></pre></div>
+</section>
+
+<section class="doc" id="rd-persistence" data-group="Vận hành"><p class="group-label">Vận hành</p>
+<h2>Persistence và eviction</h2>
+<div class="table-wrap"><table>
+<thead><tr><th></th><th>RDB</th><th>AOF</th></tr></thead>
+<tbody>
+<tr><td>Cách lưu</td><td>Snapshot định kỳ (<code>save 60 1000</code>), fork + copy-on-write</td><td>Ghi log mọi lệnh ghi (<code>appendonly yes</code>)</td></tr>
+<tr><td>Mất dữ liệu khi sập</td><td>Vài phút gần nhất</td><td>Tối đa ~1 giây với <code>appendfsync everysec</code> (mặc định, được khuyên dùng)</td></tr>
+<tr><td>Khởi động lại</td><td>Nhanh</td><td>Chậm hơn</td></tr>
+</tbody></table></div>
+<p>Bật cả hai thì khi khởi động Redis đọc AOF vì đầy đủ hơn. Redis làm cache thuần có thể tắt persistence.</p>
+<h3>Eviction khi đầy bộ nhớ</h3>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">maxmemory 2gb
+maxmemory-policy allkeys-lru     # cache: bỏ key ít dùng gần đây nhất</code></pre></div>
+<div class="table-wrap"><table>
+<thead><tr><th>Policy</th><th>Hành vi</th></tr></thead>
+<tbody>
+<tr><td><code>noeviction</code> (mặc định)</td><td>Báo lỗi khi ghi. Dùng khi Redis chứa dữ liệu không được mất (queue, khóa).</td></tr>
+<tr><td><code>allkeys-lru</code> / <code>allkeys-lfu</code></td><td>Bỏ key ít dùng gần đây / ít dùng nhất trong mọi key. Lựa chọn cho cache.</td></tr>
+<tr><td><code>volatile-lru</code> / <code>volatile-lfu</code> / <code>volatile-ttl</code></td><td>Chỉ bỏ key có TTL. Không key nào có TTL thì giống noeviction.</td></tr>
+<tr><td><code>allkeys-random</code> / <code>volatile-random</code></td><td>Bỏ ngẫu nhiên.</td></tr>
+</tbody></table></div>
+<div class="note tip"><span class="nt">Tách vai trò</span><p>Không trộn cache (cho phép mất) với queue/khóa (không được mất) trên cùng instance với <code>allkeys-lru</code>: Redis có thể xóa mất job của BullMQ. Dùng hai instance hoặc <code>noeviction</code> cho instance chứa queue.</p></div>
+</section>
+
+<section class="doc" id="rd-ha" data-group="Vận hành"><p class="group-label">Vận hành</p>
+<h2>Replication, Sentinel và Cluster</h2>
+<ul>
+  <li><strong>Replication</strong>: replica sao chép bất đồng bộ từ master; đọc được từ replica (có thể hơi cũ). <code>WAIT</code> chờ N replica nhận ghi.</li>
+  <li><strong>Sentinel</strong>: giám sát master, tự failover sang replica, cho client biết master mới. Hợp khi dữ liệu vừa một máy.</li>
+  <li><strong>Cluster</strong>: chia dữ liệu theo <strong>16384 hash slot</strong> (CRC16(key) mod 16384) trên nhiều master, tối thiểu 3 master (khuyên 3 master + 3 replica).</li>
+</ul>
+<p>Lệnh nhiều key (MGET, MULTI, Lua) trên cluster chỉ chạy khi mọi key cùng slot, nếu không sẽ lỗi <code>CROSSSLOT</code>. Dùng <strong>hash tag</strong>: chỉ phần trong <code>{…}</code> được băm.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash">SET rl:{shop-1}:minute 1
+SET rl:{shop-1}:hour 1          # cùng slot với key trên nhờ {shop-1}</code></pre></div>
+</section>
+
+<section class="doc" id="rd-perf" data-group="Vận hành"><p class="group-label">Vận hành</p>
+<h2>Hiệu năng và anti-pattern</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Vấn đề</th><th>Thay bằng</th></tr></thead>
+<tbody>
+<tr><td><code>KEYS *</code> trên production (chặn server)</td><td><code>SCAN</code> theo đợt; tốt hơn là lưu danh sách key cần thiết trong một set</td></tr>
+<tr><td>Big key (hash/list hàng triệu phần tử, string vài MB)</td><td>Chia nhỏ theo bucket; xóa bằng <code>UNLINK</code>; tìm bằng <code>redis-cli --bigkeys</code></td></tr>
+<tr><td><code>HGETALL</code>/<code>SMEMBERS</code> trên tập lớn</td><td><code>HSCAN</code>/<code>SSCAN</code>, hoặc chỉ lấy field cần</td></tr>
+<tr><td>Hot key (một key nhận phần lớn traffic)</td><td>Cache cục bộ trong process, client-side caching, nhân bản key</td></tr>
+<tr><td>Mở connection mỗi request</td><td>Một client dùng lâu dài (ioredis/Lettuce multiplex) hoặc pool (Jedis)</td></tr>
+<tr><td>Nhiều lệnh nhỏ tuần tự</td><td>Pipeline, <code>MGET</code>/<code>MSET</code></td></tr>
+<tr><td>Key không TTL tích tụ mãi</td><td>Luôn đặt TTL cho cache, bộ đếm theo thời gian</td></tr>
+</tbody></table></div>
+<p>Đặt tên key theo dạng <code>&lt;loại&gt;:&lt;id&gt;:&lt;phần&gt;</code>, ví dụ <code>settings:shop-1</code>, <code>rl:ip:1.2.3.4</code>. Dùng ACL để mỗi ứng dụng có user riêng, chỉ được truy cập prefix và lệnh cần thiết.</p>
+</section>
+
+<section class="doc" id="rd-nest" data-group="Sử dụng"><p class="group-label">Sử dụng</p>
+<h2>Dùng trong NestJS (ioredis)</h2>
+<div class="code has-file"><span class="file">src/redis/redis.module.ts</span><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">import Redis from 'ioredis';
+
+export const REDIS = Symbol('REDIS');
+
+@Global()
+@Module({
+  providers: [{
+    provide: REDIS,
+    inject: [ConfigService],
+    useFactory: (c: ConfigService) =&gt; {
+      const client = new Redis(c.getOrThrow('REDIS_URL'), {
+        maxRetriesPerRequest: 3,
+        enableAutoPipelining: true,             // tự gom lệnh cùng vòng event loop
+      });
+      client.on('error', (e) =&gt; Logger.error(e.message, 'Redis'));  // thiếu listener → crash khi mất kết nối
+      return client;
+    },
+  }],
+  exports: [REDIS],
+})
+export class RedisModule implements OnApplicationShutdown {
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+  async onApplicationShutdown() { await this.redis.quit(); }
+}</code></pre></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">@Injectable()
+export class VisitCounter {
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  async hit(shop: string) {
+    const day = new Date().toISOString().slice(0, 10);
+    const [[, count]] = (await this.redis.multi()
+      .incr(`visits:${shop}:${day}`)
+      .expire(`visits:${shop}:${day}`, 2 * 86_400)
+      .exec())!;
+    return count as number;
+  }
+}</code></pre></div>
+<p>Các module Nest khác dùng Redis: <code>@nestjs/cache-manager</code> + <code>@keyv/redis</code> (<a href="#caching">Caching</a>), <code>@nestjs/bullmq</code> (<a href="#queues">Queues</a>), storage Redis cho <code>@nestjs/throttler</code>, <code>@socket.io/redis-adapter</code> cho WebSocket nhiều instance. Cluster: <code>new Redis.Cluster([{ host, port }])</code>.</p>
+</section>
+
+<section class="doc" id="rd-java" data-group="Sử dụng"><p class="group-label">Sử dụng</p>
+<h2>Dùng trong Java</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Client</th><th>Đặc điểm</th></tr></thead>
+<tbody>
+<tr><td>Lettuce</td><td>Netty, non-blocking, một connection dùng chung cho nhiều thread; mặc định của Spring Data Redis</td></tr>
+<tr><td>Jedis</td><td>Đơn giản, đồng bộ; <code>JedisPooled</code> tự quản lý pool</td></tr>
+<tr><td>Redisson</td><td>Cấu trúc dữ liệu phân tán cấp cao: <code>RLock</code>, <code>RRateLimiter</code>, <code>RMap</code> có TTL</td></tr>
+</tbody></table></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">// Jedis
+JedisPooled jedis = new JedisPooled("localhost", 6379);
+jedis.set("settings:demo", json, SetParams.setParams().ex(300));
+long n = jedis.incr("visits:demo:2026-11-16");
+
+// Lettuce
+RedisClient client = RedisClient.create("redis://localhost:6379");
+StatefulRedisConnection&lt;String, String&gt; conn = client.connect();     // thread-safe, dùng chung
+RedisCommands&lt;String, String&gt; sync = conn.sync();
+sync.set("lock:sync", token, SetArgs.Builder.nx().px(30_000));</code></pre></div>
+<h3>Spring Data Redis và Spring Cache</h3>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">@Service
+class SettingsService {
+    private final StringRedisTemplate redis;
+    SettingsService(StringRedisTemplate redis) { this.redis = redis; }
+
+    void bump(String shop) {
+        redis.opsForValue().increment("visits:" + shop);
+        redis.opsForZSet().incrementScore("leaderboard:blocked", shop, 1);
+    }
+
+    @Cacheable(cacheNames = "settings", key = "#shop")          // cache-aside tự động
+    public Settings get(String shop) { return repo.find(shop); }
+
+    @CacheEvict(cacheNames = "settings", key = "#shop")
+    public void update(String shop, Settings s) { repo.save(shop, s); }
+}
+// application.yml: spring.cache.type=redis, spring.cache.redis.time-to-live=5m</code></pre></div>
+<h3>Redisson lock</h3>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-java">RLock lock = redisson.getLock("lock:sync-usage");
+if (lock.tryLock(0, 55, TimeUnit.SECONDS)) {       // không chờ, tự hết hạn sau 55s
+    try { usage.sync(); } finally { lock.unlock(); }
+}</code></pre></div>
+</section>
+
+<section class="doc" id="rd-p-cache" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Cache-aside và chống cache stampede</h2>
+<p>Đọc cache trước; miss thì đọc DB rồi ghi cache với TTL; khi ghi dữ liệu thì xóa cache. Ba vấn đề cần xử lý:</p>
+<ul>
+  <li><strong>Stampede</strong>: key nóng hết hạn, hàng trăm request cùng lúc đánh vào DB. Chỉ cho một request tính lại (khóa ngắn hoặc single-flight trong process).</li>
+  <li><strong>Hết hạn đồng loạt</strong>: thêm jitter ngẫu nhiên vào TTL.</li>
+  <li><strong>Penetration</strong>: truy vấn key không tồn tại liên tục đi thẳng vào DB. Cache cả kết quả "không có" với TTL ngắn, hoặc dùng Bloom filter.</li>
+</ul>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">@Injectable()
+export class CacheAside {
+  private readonly inflight = new Map&lt;string, Promise&lt;unknown&gt;&gt;();   // single-flight trong process
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  async get&lt;T&gt;(key: string, ttlSec: number, load: () =&gt; Promise&lt;T | null&gt;): Promise&lt;T | null&gt; {
+    const hit = await this.redis.get(key);
+    if (hit !== null) return hit === '__null__' ? null : (JSON.parse(hit) as T);
+
+    const running = this.inflight.get(key);
+    if (running) return running as Promise&lt;T | null&gt;;
+
+    const p = (async () =&gt; {
+      const value = await load();
+      const ttl = value === null ? 30 : ttlSec + Math.floor(Math.random() * ttlSec * 0.1);  // jitter 10%
+      await this.redis.set(key, value === null ? '__null__' : JSON.stringify(value), 'EX', ttl);
+      return value;
+    })().finally(() =&gt; this.inflight.delete(key));
+
+    this.inflight.set(key, p);
+    return p;
+  }
+
+  invalidate(key: string) { return this.redis.unlink(key); }
+}</code></pre></div>
+<p>Nhiều instance cùng giữ cache cục bộ (L1) thì publish sự kiện xóa qua Pub/Sub để mọi instance xóa bản trong RAM.</p>
+</section>
+
+<section class="doc" id="rd-p-lock" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Distributed lock</h2>
+<p><code>SET key token NX PX ttl</code> để lấy khóa; giải phóng bằng Lua kiểm tra token (chỉ chủ khóa mới xóa được). Ví dụ đầy đủ cho Nest ở <a href="#p-lock">tab NestJS</a>, cho Java ở mục Redisson phía trên.</p>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-lua">-- release.lua: KEYS[1] = lock key, ARGV[1] = token
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('del', KEYS[1])
+else
+  return 0
+end</code></pre></div>
+<div class="note warn"><span class="nt">Giới hạn</span><p>Khóa trên một Redis không an toàn tuyệt đối: master sập trước khi replica nhận key, hoặc tiến trình bị dừng (GC pause) quá TTL, đều có thể khiến hai nơi cùng giữ khóa. Redlock (nhiều node độc lập) giảm rủi ro nhưng vẫn còn tranh luận. Khi đúng đắn là bắt buộc (trừ tiền), thêm <strong>fencing token</strong> (số tăng dần kiểm tra ở DB) hoặc dùng ràng buộc unique/transaction của DB.</p></div>
+</section>
+
+<section class="doc" id="rd-p-ratelimit" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Rate limiting</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Thuật toán</th><th>Cấu trúc</th><th>Ưu / nhược</th></tr></thead>
+<tbody>
+<tr><td>Fixed window</td><td><code>INCR</code> + <code>EXPIRE</code> theo phút</td><td>Đơn giản, rẻ; cho phép gấp đôi giới hạn ở ranh giới cửa sổ</td></tr>
+<tr><td>Sliding window log</td><td>Sorted set timestamp</td><td>Chính xác; tốn bộ nhớ theo số request</td></tr>
+<tr><td>Token bucket</td><td>Hash (tokens, last) + Lua</td><td>Cho phép burst có kiểm soát; phổ biến cho API</td></tr>
+</tbody></table></div>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">// fixed window
+async allowFixed(ip: string, limit = 100) {
+  const key = `rl:${ip}:${Math.floor(Date.now() / 60_000)}`;
+  const [[, count]] = (await this.redis.multi().incr(key).expire(key, 120).exec())!;
+  return (count as number) &lt;= limit;
+}
+
+// sliding window: chạy nguyên tử bằng Lua
+const SLIDING = `
+local key, now, window, limit = KEYS[1], tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3])
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+if redis.call('ZCARD', key) &gt;= limit then return 0 end
+redis.call('ZADD', key, now, ARGV[4])
+redis.call('PEXPIRE', key, window)
+return 1`;
+
+this.redis.defineCommand('slidingLimit', { numberOfKeys: 1, lua: SLIDING });
+
+async allowSliding(ip: string) {
+  const ok = await (this.redis as any).slidingLimit(`rl:sw:${ip}`, Date.now(), 60_000, 100, randomUUID());
+  return ok === 1;
+}</code></pre></div>
+<p>Java: Redisson <code>RRateLimiter</code> (<code>trySetRate(RateType.OVERALL, 100, Duration.ofMinutes(1))</code> rồi <code>tryAcquire()</code>), hoặc Bucket4j với backend Redis.</p>
+</section>
+
+<section class="doc" id="rd-p-structures" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Bảng xếp hạng, đếm duy nhất, hàng đợi lịch</h2>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-bash"># bảng xếp hạng shop bị tấn công nhiều nhất trong ngày
+ZINCRBY blocked:2026-11-16 1 demo.myshopify.com
+ZRANGE blocked:2026-11-16 0 9 REV WITHSCORES          # top 10
+
+# đếm visitor khác nhau gần đúng (sai số ~0.81%, 12KB mỗi key)
+PFADD uv:demo:2026-11-16 1.2.3.4 5.6.7.8
+PFCOUNT uv:demo:2026-11-16
+
+# hàng đợi hẹn giờ: score = thời điểm chạy
+ZADD scheduled 1731730000000 '{"job":"recheck","order":"1001"}'
+ZRANGE scheduled -inf 1731730000000 BYSCORE LIMIT 0 100   # lấy job đến hạn; xóa bằng ZREM (nên gói trong Lua)
+
+# đã thấy IP này chưa (Bloom filter, Redis 8)
+BF.RESERVE seen-ip 0.001 10000000
+BF.ADD seen-ip 1.2.3.4
+BF.EXISTS seen-ip 1.2.3.4</code></pre></div>
+</section>
+
+<section class="doc" id="rd-p-queue" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Hàng đợi tin cậy với Streams</h2>
+<div class="code"><button class="copy" type="button">Sao chép</button><pre><code class="language-ts">@Injectable()
+export class VisitStreamWorker implements OnModuleInit, OnModuleDestroy {
+  private running = true;
+  private readonly name = `worker-${process.pid}`;
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  async onModuleInit() {
+    await this.redis.xgroup('CREATE', 'visits', 'writers', '$', 'MKSTREAM').catch((e) =&gt; {
+      if (!String(e).includes('BUSYGROUP')) throw e;           // group đã tồn tại
+    });
+    void this.loop();
+  }
+
+  onModuleDestroy() { this.running = false; }
+
+  private async loop() {
+    const reader = this.redis.duplicate();                      // lệnh BLOCK cần connection riêng
+    while (this.running) {
+      const res = (await reader.xreadgroup('GROUP', 'writers', this.name,
+        'COUNT', 100, 'BLOCK', 5000, 'STREAMS', 'visits', '&gt;')) as [string, [string, string[]][]][] | null;
+      if (!res) continue;
+      for (const [, entries] of res) {
+        for (const [id, fields] of entries) {
+          await this.handle(fields);
+          await this.redis.xack('visits', 'writers', id);
+        }
+      }
+    }
+    await reader.quit();
+  }
+}
+
+// producer
+await redis.xadd('visits', 'MAXLEN', '~', 1_000_000, '*', 'shop', shop, 'ip', ip);</code></pre></div>
+<p>Định kỳ chạy <code>XAUTOCLAIM</code> để nhận lại message của worker đã chết; message có số lần giao (<code>XPENDING</code>) quá ngưỡng thì chuyển sang stream dead-letter. Cần nhiều tính năng (retry, delay, priority, UI) thì dùng BullMQ (Nest) hoặc Redisson <code>RReliableQueue</code>/RabbitMQ.</p>
+</section>
+
+<section class="doc" id="rd-p-session" data-group="Patterns"><p class="group-label">Patterns</p>
+<h2>Session, idempotency key, feature flag</h2>
+<ul>
+  <li><strong>Session</strong>: hash <code>sess:&lt;id&gt;</code> với TTL trượt (gia hạn mỗi request). Spring Session và <code>connect-redis</code> (Express) làm sẵn.</li>
+  <li><strong>Idempotency key</strong>: <code>SET idem:&lt;key&gt; PENDING NX EX 86400</code> → xử lý → ghi kết quả. Ví dụ đầy đủ ở <a href="#p-idempotency">tab NestJS</a>.</li>
+  <li><strong>Feature flag / cấu hình nóng</strong>: hash <code>flags</code>, cache cục bộ vài giây, Pub/Sub để báo thay đổi.</li>
+  <li><strong>Deduplicate sự kiện</strong>: <code>SET seen:&lt;eventId&gt; 1 NX EX 604800</code>; trả về null nghĩa là đã xử lý.</li>
+</ul>
+</section>
+
+<section class="doc" id="rd-checklist" data-group="Tra cứu"><p class="group-label">Tra cứu</p>
+<h2>Checklist production</h2>
+<ul>
+  <li>Đặt <code>maxmemory</code> và policy phù hợp vai trò (cache: <code>allkeys-lru/lfu</code>; queue/khóa: <code>noeviction</code>), chừa RAM cho fork và buffer.</li>
+  <li>Cache luôn có TTL; key có quy ước đặt tên và prefix theo ứng dụng.</li>
+  <li>Không <code>KEYS</code>, không big key; theo dõi <code>SLOWLOG</code>, <code>INFO</code>, tỉ lệ hit, số client kết nối.</li>
+  <li>HA bằng Sentinel hoặc Cluster; client cấu hình đúng chế độ; hash tag cho thao tác nhiều key.</li>
+  <li>Bật ACL (user riêng cho mỗi ứng dụng), TLS, không mở cổng 6379 ra Internet.</li>
+  <li>Client: một connection dùng lâu dài, có listener lỗi, timeout và giới hạn retry.</li>
+  <li>Persistence: AOF <code>everysec</code> nếu dữ liệu quan trọng; sao lưu RDB định kỳ ra ngoài máy.</li>
+</ul>
+<h3>Nguồn</h3>
+<ul>
+  <li><a href="https://redis.io/docs/latest/develop/data-types/" target="_blank" rel="noopener">Redis data types</a> · <a href="https://redis.io/docs/latest/develop/data-types/streams/" target="_blank" rel="noopener">Streams</a> · <a href="https://redis.io/docs/latest/commands/set/" target="_blank" rel="noopener">SET</a></li>
+  <li><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">Persistence</a> · <a href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">Eviction</a> · <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/" target="_blank" rel="noopener">Cluster</a></li>
+  <li><a href="https://github.com/redis/ioredis" target="_blank" rel="noopener">ioredis</a> · <a href="https://redis.github.io/lettuce/" target="_blank" rel="noopener">Lettuce</a> · <a href="https://redisson.org/docs/" target="_blank" rel="noopener">Redisson</a></li>
+</ul>
+</section>
+</div>
 </main>
 </div>
 <a class="to-top" href="#top">↑ Đầu trang</a>
@@ -4010,8 +5111,8 @@ Thread.ofVirtual().start(() -&gt; {
     active = name;
     tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.tab === name)); });
     document.querySelectorAll('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
-    document.querySelectorAll('[data-for]').forEach(function (n) { n.hidden = n.dataset.for !== name; });
-    document.title = name === 'java' ? 'Sổ tay Java' : 'Sổ tay NestJS';
+    document.querySelectorAll('[data-for]').forEach(function (n) { n.hidden = n.dataset.for.split(' ').indexOf(name) === -1; });
+    document.title = 'Sổ tay ' + ({ nest: 'NestJS', java: 'Java', rabbit: 'RabbitMQ', kafka: 'Kafka', redis: 'Redis' })[name];
     try { localStorage.setItem('handbook-tab', name); } catch (e) {}
     if (search.value) { search.value = ''; filter(); }
   }
@@ -4025,7 +5126,7 @@ Thread.ofVirtual().start(() -&gt; {
   tabs.forEach(function (t) {
     t.addEventListener('click', function () {
       activate(t.dataset.tab);
-      history.replaceState(null, '', t.dataset.tab === 'java' ? '#j-tong-quan' : '#tong-quan');
+      history.replaceState(null, '', '#' + ({ nest: 'tong-quan', java: 'j-tong-quan', rabbit: 'r-tong-quan', kafka: 'k-tong-quan', redis: 'rd-tong-quan' })[t.dataset.tab]);
       window.scrollTo(0, 0);
     });
   });
@@ -4050,7 +5151,7 @@ Thread.ofVirtual().start(() -&gt; {
   if (!fromHash()) {
     var saved = null;
     try { saved = localStorage.getItem('handbook-tab'); } catch (e) {}
-    activate(saved === 'java' ? 'java' : 'nest');
+    activate(['java', 'rabbit', 'kafka', 'redis'].indexOf(saved) !== -1 ? saved : 'nest');
   }
 
   var links = {};

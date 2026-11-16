@@ -1,0 +1,493 @@
+<section class="doc" id="config" data-group="Kỹ thuật">
+<h2>Configuration <span class="badge b-pkg">@nestjs/config</span></h2>
+<p>Đọc biến môi trường từ <c>.env</c> và <c>process.env</c>, validate lúc khởi động, rồi truy cập qua <c>ConfigService</c> thay vì gọi <c>process.env</c> rải rác.</p>
+<pre data-lang="bash">npm i @nestjs/config</pre>
+<pre data-lang="ts" data-file="src/config/database.config.ts">
+import { registerAs } from '@nestjs/config';
+
+// config theo namespace: gom biến liên quan vào một object có kiểu
+export default registerAs('database', () => ({
+  uri: process.env.MONGO_URI!,
+  poolSize: parseInt(process.env.MONGO_POOL_SIZE ?? '10', 10),
+}));
+</pre>
+<pre data-lang="ts" data-file="src/app.module.ts">
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,                       // không cần import lại ở module con
+      envFilePath: ['.env.local', '.env'],  // file đầu tiên thắng
+      load: [databaseConfig, redisConfig],
+      cache: true,                          // cache giá trị đọc từ process.env
+      validate: validateEnv,                // fail fast nếu thiếu biến
+    }),
+    MongooseModule.forRootAsync({
+      inject: [databaseConfig.KEY],
+      useFactory: (db: ConfigType<typeof databaseConfig>) => ({ uri: db.uri, maxPoolSize: db.poolSize }),
+    }),
+  ],
+})
+export class AppModule {}
+</pre>
+<h3>Validate biến môi trường bằng class-validator</h3>
+<pre data-lang="ts" data-file="src/config/env.validation.ts">
+import { plainToInstance } from 'class-transformer';
+import { IsEnum, IsInt, IsString, validateSync } from 'class-validator';
+
+class EnvVars {
+  @IsEnum(['development', 'production', 'test']) NODE_ENV: string;
+  @IsInt() PORT: number;
+  @IsString() MONGO_URI: string;
+}
+
+export function validateEnv(config: Record<string, unknown>) {
+  const env = plainToInstance(EnvVars, config, { enableImplicitConversion: true });
+  const errors = validateSync(env, { skipMissingProperties: false });
+  if (errors.length) throw new Error(errors.toString());
+  return env;
+}
+</pre>
+<h3>Ba cách đọc config</h3>
+<pre data-lang="ts">
+// 1. theo đường dẫn chuỗi
+const uri = this.config.get<string>('database.uri');
+
+// 2. bắt buộc phải có, thiếu thì ném lỗi
+const key = this.config.getOrThrow<string>('SHOPIFY_API_KEY');
+
+// 3. inject cả namespace, có kiểu đầy đủ (khuyên dùng)
+constructor(@Inject(databaseConfig.KEY) private readonly db: ConfigType<typeof databaseConfig>) {}
+
+// kiểu cho ConfigService
+constructor(private readonly config: ConfigService<{ PORT: number }, true>) {
+  const port = this.config.get('PORT', { infer: true });  // number
+}
+</pre>
+<div class="note warn"><span class="nt">Lưu ý</span><p>Factory nạp qua <c>load</c> không được <c>validationSchema</c> kiểm tra; hãy validate trong factory hoặc dùng <c>validate</c>. Mặc định biến của shell thắng giá trị trong <c>.env</c>.</p></div>
+</section>
+
+<section class="doc" id="database" data-group="Kỹ thuật">
+<h2>Database</h2>
+<p>Nest không gắn với ORM nào. Các package chính thức: <c>@nestjs/mongoose</c>, <c>@nestjs/typeorm</c>, <c>@nestjs/sequelize</c>, <c>@mikro-orm/nestjs</c>; Prisma và Drizzle dùng qua provider tự viết.</p>
+<h3>MongoDB với Mongoose <span class="badge b-pkg">@nestjs/mongoose</span></h3>
+<pre data-lang="ts" data-file="src/orders/schemas/order.schema.ts">
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument, Types } from 'mongoose';
+
+export type OrderDocument = HydratedDocument<Order>;
+
+@Schema({ timestamps: true, collection: 'orders' })
+export class Order {
+  @Prop({ required: true, index: true }) shop: string;
+  @Prop({ required: true }) orderId: string;
+  @Prop({ type: [String], default: [] }) tags: string[];
+  @Prop({ type: Types.ObjectId, ref: 'Customer' }) customer?: Types.ObjectId;
+  @Prop({ type: Object }) riskSnapshot?: Record<string, unknown>;
+}
+
+export const OrderSchema = SchemaFactory.createForClass(Order);
+OrderSchema.index({ shop: 1, orderId: 1 }, { unique: true });   // compound index khai báo ở schema
+</pre>
+<pre data-lang="ts">
+// module
+MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }]);
+
+// service / repository
+@Injectable()
+export class OrdersRepository {
+  constructor(
+    @InjectModel(Order.name) private readonly model: Model<Order>,
+    @InjectConnection() private readonly conn: Connection,
+  ) {}
+
+  upsert(shop: string, orderId: string, data: Partial<Order>) {
+    return this.model.findOneAndUpdate({ shop, orderId }, { $set: data }, { upsert: true, new: true }).lean();
+  }
+
+  async transfer(a: string, b: string) {
+    const session = await this.conn.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await this.model.updateOne({ _id: a }, { $inc: { credit: -1 } }, { session });
+        await this.model.updateOne({ _id: b }, { $inc: { credit: 1 } }, { session });
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
+}
+</pre>
+<p>Nhiều kết nối: đặt <c>connectionName</c> trong <c>forRoot</c>, rồi truyền tên đó vào <c>forFeature(..., 'analytics')</c> và <c>@InjectModel(X.name, 'analytics')</c>. Hook và plugin của schema dùng <c>forFeatureAsync</c>. Trong test, mock bằng <c>getModelToken(Order.name)</c>.</p>
+
+<h3>TypeORM <span class="badge b-pkg">@nestjs/typeorm</span></h3>
+<pre data-lang="ts">
+TypeOrmModule.forRootAsync({
+  inject: [ConfigService],
+  useFactory: (c: ConfigService) => ({
+    type: 'postgres', url: c.getOrThrow('DATABASE_URL'),
+    autoLoadEntities: true, synchronize: false,      // production: dùng migration, đừng synchronize
+  }),
+});
+TypeOrmModule.forFeature([User]);
+
+@Injectable()
+export class UsersService {
+  constructor(
+    @InjectRepository(User) private readonly repo: Repository<User>,
+    private readonly dataSource: DataSource,
+  ) {}
+  createMany(users: User[]) {
+    return this.dataSource.transaction((m) => m.save(User, users));
+  }
+}
+</pre>
+
+<h3>Prisma</h3>
+<pre data-lang="ts">
+@Injectable()
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  async onModuleInit() { await this.$connect(); }
+  async onModuleDestroy() { await this.$disconnect(); }
+}
+// Prisma 7 dùng driver adapter: super({ adapter: new PrismaPg({ connectionString }) })
+// transaction: this.prisma.$transaction(async (tx) => { ... })
+</pre>
+</section>
+
+<section class="doc" id="validation" data-group="Kỹ thuật">
+<h2>Validation và Serialization</h2>
+<h3>ValidationPipe + class-validator</h3>
+<pre data-lang="bash">npm i class-validator class-transformer</pre>
+<pre data-lang="ts" data-file="src/rules/dto/create-rule.dto.ts">
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsIP, IsOptional,
+  IsString, Length, ValidateNested,
+} from 'class-validator';
+
+export enum RuleAction { BLOCK = 'block', ALLOW = 'allow', REDIRECT = 'redirect' }
+
+class Condition {
+  @IsString() field: string;
+  @IsString() value: string;
+}
+
+export class CreateRuleDto {
+  @IsString() @Length(1, 120) name: string;
+  @IsEnum(RuleAction) action: RuleAction;
+  @IsOptional() @IsIP() ip?: string;
+  @IsBoolean() enabled = true;                       // giá trị mặc định (cần transform: true)
+
+  @IsArray() @ArrayMaxSize(50)
+  @ValidateNested({ each: true }) @Type(() => Condition)   // validate object lồng nhau
+  conditions: Condition[];
+}
+</pre>
+<pre data-lang="ts">
+app.useGlobalPipes(new ValidationPipe({
+  whitelist: true,              // bỏ các field không có decorator
+  forbidNonWhitelisted: true,   // ...hoặc trả 400 nếu client gửi field lạ
+  transform: true,              // chuyển payload thành instance DTO, ép kiểu param/query
+  transformOptions: { enableImplicitConversion: true },
+  stopAtFirstError: true,
+  // exceptionFactory: (errors) => new UnprocessableEntityException(errors),
+}));
+</pre>
+<h3>Mapped types: tái sử dụng DTO</h3>
+<pre data-lang="ts">
+import { PartialType, PickType, OmitType, IntersectionType } from '@nestjs/mapped-types';
+// dùng Swagger thì import từ '@nestjs/swagger' để giữ được metadata tài liệu
+
+export class UpdateRuleDto extends PartialType(CreateRuleDto) {}             // mọi field optional
+export class RenameRuleDto extends PickType(CreateRuleDto, ['name'] as const);
+export class RuleWithoutIp extends OmitType(CreateRuleDto, ['ip'] as const);
+export class RuleWithMeta extends IntersectionType(CreateRuleDto, MetaDto) {}
+export class PatchNameDto extends PartialType(PickType(CreateRuleDto, ['name'] as const)) {} // lồng được
+</pre>
+<div class="note v12"><span class="nt">v12.1: Standard Schema</span><p>Có thể validate bằng Zod/Valibot/ArkType mà không cần class: <c>@Body({'{'} schema: CreateRuleSchema {'}'}) dto: z.infer&lt;typeof CreateRuleSchema&gt;</c> kết hợp <c>new StandardSchemaValidationPipe()</c>. Với Zod, <c>z.object</c> bỏ key lạ, <c>z.strictObject</c> từ chối key lạ.</p></div>
+
+<h3>Serialization: kiểm soát dữ liệu trả về</h3>
+<p><c>ClassSerializerInterceptor</c> chạy <c>instanceToPlain</c> của class-transformer trên giá trị trả về. Handler phải trả về <strong>instance của class</strong> (hoặc khai báo <c>@SerializeOptions({'{'} type {'}'})</c>).</p>
+<pre data-lang="ts">
+export class UserEntity {
+  id: string;
+  email: string;
+  @Exclude() password: string;                                 // không bao giờ trả ra
+  @Expose() get displayName() { return this.email.split('@')[0]; }
+  @Transform(({ value }) => value?.name) role: Role;           // chỉ trả role.name
+  constructor(partial: Partial<UserEntity>) { Object.assign(this, partial); }
+}
+
+@UseInterceptors(ClassSerializerInterceptor)
+@SerializeOptions({ excludeExtraneousValues: false })
+@Get(':id')
+async find(@Param('id') id: string) {
+  return new UserEntity(await this.users.findOne(id));
+}
+</pre>
+</section>
+
+<section class="doc" id="caching" data-group="Kỹ thuật">
+<h2>Caching <span class="badge b-pkg">@nestjs/cache-manager</span></h2>
+<p>Từ Nest 11, <c>cache-manager</c> v6 dùng Keyv làm tầng lưu trữ. TTL tính bằng <strong>mili-giây</strong>.</p>
+<pre data-lang="bash">npm i @nestjs/cache-manager cache-manager keyv @keyv/redis cacheable</pre>
+<pre data-lang="ts">
+import { CacheModule } from '@nestjs/cache-manager';
+import { createKeyv } from '@keyv/redis';
+import { Keyv } from 'keyv';
+import { CacheableMemory } from 'cacheable';
+
+CacheModule.registerAsync({
+  isGlobal: true,
+  useFactory: () => ({
+    ttl: 60_000,
+    stores: [
+      new Keyv({ store: new CacheableMemory({ ttl: 60_000, lruSize: 5000 }) }), // L1 in-memory
+      createKeyv('redis://localhost:6379'),                                    // L2 Redis
+    ],
+  }),
+});
+</pre>
+<pre data-lang="ts">
+@Injectable()
+export class SettingsService {
+  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+
+  async get(shop: string) {
+    const key = `settings:${shop}`;
+    const cached = await this.cache.get<Settings>(key);   // miss → undefined
+    if (cached) return cached;
+    const fresh = await this.repo.findByShop(shop);
+    await this.cache.set(key, fresh, 5 * 60_000);
+    return fresh;
+  }
+
+  async update(shop: string, dto: UpdateSettingsDto) {
+    await this.repo.update(shop, dto);
+    await this.cache.del(`settings:${shop}`);             // cache-aside: xóa khi ghi
+  }
+}
+</pre>
+<p>Cache tự động cho route GET: <c>@UseInterceptors(CacheInterceptor)</c>, tinh chỉnh bằng <c>@CacheKey('k')</c> và <c>@CacheTTL(30_000)</c>. Muốn key theo shop/user, kế thừa <c>CacheInterceptor</c> và override <c>trackBy(context)</c>.</p>
+<div class="note warn"><span class="nt">Cạm bẫy</span><ul><li>Store Keyv serialize sang JSON: <c>Date</c> lấy ra thành chuỗi.</li><li>Store in-memory giữ tham chiếu object: sửa object lấy từ cache là sửa luôn cache.</li><li>Luôn gắn listener <c>'error'</c> cho store Redis, nếu không mất kết nối có thể làm sập app.</li></ul></div>
+</section>
+
+<section class="doc" id="versioning" data-group="Kỹ thuật">
+<h2>Versioning</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>VersioningType</th><th>Phiên bản đọc từ</th></tr></thead>
+<tbody>
+<tr><td><c>URI</c></td><td><c>/v1/cats</c> (prefix mặc định <c>v</c>)</td></tr>
+<tr><td><c>HEADER</c></td><td>Header tùy chọn, ví dụ <c>X-API-Version: 2</c></td></tr>
+<tr><td><c>MEDIA_TYPE</c></td><td><c>Accept: application/json;v=2</c></td></tr>
+<tr><td><c>CUSTOM</c></td><td>Hàm <c>extractor(req)</c> tự viết</td></tr>
+</tbody></table></div>
+<pre data-lang="ts">
+app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+
+@Controller({ path: 'cats', version: '1' })
+export class CatsV1Controller {}
+
+@Controller({ path: 'cats', version: ['2', '3'] })
+export class CatsV2Controller {
+  @Version('3') @Get() findAllV3() {}      // version trên method ghi đè controller
+  @Get() findAll() {}
+}
+
+@Controller({ path: 'health', version: VERSION_NEUTRAL })  // khớp mọi version
+export class HealthController {}
+</pre>
+</section>
+
+<section class="doc" id="scheduling" data-group="Kỹ thuật">
+<h2>Task scheduling <span class="badge b-pkg">@nestjs/schedule</span></h2>
+<pre data-lang="ts">
+@Module({ imports: [ScheduleModule.forRoot()] })    // chỉ import ở MỘT nơi, nếu không job chạy nhiều lần
+export class AppModule {}
+
+@Injectable()
+export class CleanupJobs {
+  private readonly logger = new Logger(CleanupJobs.name);
+  constructor(private readonly registry: SchedulerRegistry) {}
+
+  @Cron(CronExpression.EVERY_DAY_AT_2AM, { name: 'purge-visitors', timeZone: 'Asia/Ho_Chi_Minh', waitForCompletion: true })
+  async purge() { /* ... */ }
+
+  @Cron('0 */15 * * * *')            // giây phút giờ ngày tháng thứ → mỗi 15 phút
+  syncQuota() {}
+
+  @Interval('heartbeat', 30_000) heartbeat() {}
+  @Timeout(5_000) warmup() {}        // chạy một lần sau 5 giây
+
+  pause() {
+    this.registry.getCronJob('purge-visitors').stop();
+  }
+
+  addDynamic(name: string, expr: string) {
+    const job = new CronJob(expr, () => this.logger.log(`run ${name}`));
+    this.registry.addCronJob(name, job);
+    job.start();
+  }
+}
+</pre>
+<div class="note warn"><span class="nt">Nhiều instance</span><p>Chạy 3 pod thì cron chạy 3 lần. Cần khóa phân tán (Redis <c>SET NX PX</c>, xem <a href="#p-lock">pattern Distributed lock</a>), hoặc tách cron sang một worker chỉ chạy 1 replica, hoặc dùng job lặp của BullMQ.</p></div>
+</section>
+
+<section class="doc" id="queues" data-group="Kỹ thuật">
+<h2>Queues với BullMQ <span class="badge b-pkg">@nestjs/bullmq</span></h2>
+<p>Đưa việc nặng (gửi mail, gọi API chậm, xử lý file) ra khỏi request: producer đẩy job vào Redis, worker xử lý với retry/backoff.</p>
+<pre data-lang="bash">npm i @nestjs/bullmq bullmq ioredis</pre>
+<pre data-lang="ts">
+@Module({
+  imports: [
+    BullModule.forRoot({ connection: { host: 'localhost', port: 6379 }, defaultJobOptions: { removeOnComplete: 1000 } }),
+    BullModule.registerQueue({ name: 'webhooks' }),
+  ],
+  providers: [WebhookProducer, WebhookConsumer],
+})
+export class WebhooksModule {}
+
+// producer
+@Injectable()
+export class WebhookProducer {
+  constructor(@InjectQueue('webhooks') private readonly queue: Queue) {}
+
+  enqueue(payload: OrderCreated) {
+    return this.queue.add('order-created', payload, {
+      jobId: `order:${payload.id}`,                   // chống trùng job
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 2_000 },
+    });
+  }
+}
+
+// consumer
+@Processor('webhooks', { concurrency: 10 })
+export class WebhookConsumer extends WorkerHost {
+  async process(job: Job<OrderCreated>) {
+    switch (job.name) {                               // BullMQ không có @Process('name')
+      case 'order-created': return this.handleOrder(job.data);
+    }
+  }
+
+  @OnWorkerEvent('failed')
+  onFailed(job: Job, err: Error) { /* log, alert */ }
+}
+</pre>
+<p>Job định kỳ trong BullMQ dùng <c>queue.upsertJobScheduler('id', {'{'} pattern: '0 * * * *' {'}'})</c> (option <c>repeat</c> cũ đã bỏ). Lắng nghe event toàn queue bằng <c>@QueueEventsListener('webhooks')</c>.</p>
+</section>
+
+<section class="doc" id="events" data-group="Kỹ thuật">
+<h2>Events nội bộ <span class="badge b-pkg">@nestjs/event-emitter</span></h2>
+<p>Event emitter giúp tách module: <c>OrdersService</c> chỉ phát event "order.created", các module khác tự lắng nghe mà <c>OrdersService</c> không cần biết.</p>
+<pre data-lang="ts">
+EventEmitterModule.forRoot({ wildcard: true, delimiter: '.' });
+
+export class OrderCreatedEvent { constructor(public readonly shop: string, public readonly orderId: string) {} }
+
+@Injectable()
+export class OrdersService {
+  constructor(private readonly events: EventEmitter2) {}
+  async create(dto: CreateOrderDto) {
+    const order = await this.repo.create(dto);
+    this.events.emit('order.created', new OrderCreatedEvent(order.shop, order.id));
+    return order;
+  }
+}
+
+@Injectable()
+export class RiskListener {
+  @OnEvent('order.created', { async: true })
+  async score(e: OrderCreatedEvent) { /* ... */ }
+
+  @OnEvent('order.*')                 // wildcard 1 cấp; '**' nhiều cấp
+  audit(e: unknown) {}
+}
+</pre>
+<div class="note warn"><span class="nt">Giới hạn</span><p>Event nằm trong bộ nhớ của một process: process chết là mất, không retry, không chia sang instance khác. Mặc định lỗi trong listener bị nuốt (<c>suppressErrors: true</c>). Việc quan trọng thì dùng queue hoặc message broker kèm <a href="#p-outbox">Outbox</a>.</p></div>
+</section>
+
+<section class="doc" id="logging" data-group="Kỹ thuật">
+<h2>Logging</h2>
+<pre data-lang="ts">
+// dùng trong class
+private readonly logger = new Logger(OrdersService.name);
+this.logger.log('Order synced');
+this.logger.warn(`Retry ${attempt}`);
+this.logger.error('Sync failed', err.stack);
+
+// main.ts: log dạng JSON cho môi trường production (Nest 11+)
+const app = await NestFactory.create(AppModule, {
+  logger: new ConsoleLogger({ json: true, logLevels: ['log', 'warn', 'error', 'fatal'] }),
+});
+</pre>
+<p>Cấp độ log: <c>fatal</c>, <c>error</c>, <c>warn</c>, <c>log</c>, <c>debug</c>, <c>verbose</c>. Logger tùy chỉnh implement <c>LoggerService</c> hoặc kế thừa <c>ConsoleLogger</c>; đăng ký trong module rồi <c>app.useLogger(app.get(MyLogger))</c>, kèm <c>bufferLogs: true</c> để không mất log khởi động. Production thường dùng <c>nestjs-pino</c> <span class="badge b-com">cộng đồng</span> để có JSON nhanh, redact field nhạy cảm và tự gắn request-id.</p>
+<div class="note v12"><span class="nt">v12</span><p>Structured params: <c>logger.log('User created', {'{'} userId: 1 {'}'})</c> gắn object vào trường <c>params</c> trong log JSON.</p></div>
+</section>
+
+<section class="doc" id="http-client" data-group="Kỹ thuật">
+<h2>Gọi HTTP ra ngoài</h2>
+<h3>Nest 11: @nestjs/axios</h3>
+<pre data-lang="ts">
+HttpModule.register({ baseURL: 'https://api.ipinfo.io', timeout: 5000 });
+
+@Injectable()
+export class IpInfoClient {
+  constructor(private readonly http: HttpService) {}
+
+  async lookup(ip: string) {
+    const { data } = await firstValueFrom(            // HttpService trả Observable
+      this.http.get<IpInfo>(`/${ip}`).pipe(
+        retry({ count: 2, delay: 500 }),
+        catchError((e: AxiosError) => { throw new BadGatewayException(e.message); }),
+      ),
+    );
+    return data;
+  }
+}
+</pre>
+<div class="note v12"><span class="nt">v12: @nestjs/http-client</span><p>Client dựa trên <c>fetch</c>, trả <c>Promise</c>, có sẵn retry (GET/PUT/DELETE, backoff mũ có jitter, tôn trọng <c>Retry-After</c>), timeout dạng <c>'5s'</c>, client có tên (<c>@InjectHttpClient('github')</c>) và lỗi có kiểu (<c>HttpTimeoutError</c>, <c>HttpResponseError</c>…).</p></div>
+</section>
+
+<section class="doc" id="files" data-group="Kỹ thuật">
+<h2>Upload, tải file và Server-Sent Events</h2>
+<h3>Upload (Multer, Express)</h3>
+<pre data-lang="ts">
+@Post('import')
+@UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+import(
+  @UploadedFile(
+    new ParseFilePipeBuilder()
+      .addFileTypeValidator({ fileType: 'text/csv' })
+      .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
+      .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
+  ) file: Express.Multer.File,
+) {
+  return this.importer.run(file.buffer);
+}
+// nhiều file: FilesInterceptor('files', 10) + @UploadedFiles()
+// nhiều field: FileFieldsInterceptor([{ name: 'avatar', maxCount: 1 }, { name: 'docs' }])
+</pre>
+<h3>Trả file / stream</h3>
+<pre data-lang="ts">
+@Get('export')
+export(): StreamableFile {
+  const stream = createReadStream(join(process.cwd(), 'exports/orders.csv'));
+  return new StreamableFile(stream, { type: 'text/csv', disposition: 'attachment; filename="orders.csv"' });
+}
+</pre>
+<h3>Server-Sent Events</h3>
+<pre data-lang="ts">
+@Sse('live')
+live(): Observable<MessageEvent> {
+  return interval(2000).pipe(map(() => ({ data: { visitors: this.stats.online() } }) as MessageEvent));
+}
+</pre>
+<h3>Các mục nhỏ khác</h3>
+<ul>
+  <li><strong>Compression</strong>: <c>app.use(compression())</c> (Express) hoặc <c>@fastify/compress</c>. App traffic lớn nên để reverse proxy (nginx) nén.</li>
+  <li><strong>Cookies</strong>: <c>app.use(cookieParser(secret))</c>, đọc qua <c>req.cookies</c>. <span class="badge b-v12">v12.1</span> có sẵn <c>@Cookies()</c>, <c>@SignedCookies()</c>.</li>
+  <li><strong>Session</strong>: <c>express-session</c>; MemoryStore chỉ cho dev, production dùng Redis store.</li>
+  <li><strong>MVC</strong>: <c>app.setViewEngine('hbs')</c> + <c>@Render('index')</c>.</li>
+</ul>
+</section>

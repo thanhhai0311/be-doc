@@ -1,0 +1,638 @@
+<section class="doc" id="tong-quan" data-group="Bắt đầu">
+<h2>NestJS là gì</h2>
+<p>NestJS là framework Node.js để viết ứng dụng phía server bằng TypeScript. Nest không tự xử lý HTTP mà chạy trên một <strong>HTTP adapter</strong>: mặc định là Express, có thể đổi sang Fastify (từ v12.3 có thêm Node adapter dùng thẳng <c>node:http</c>). Phần Nest thêm vào là <strong>kiến trúc</strong>: chia ứng dụng thành module, quản lý phụ thuộc bằng Dependency Injection (DI), và khai báo hành vi bằng decorator.</p>
+<p>Ba ý tưởng cốt lõi cần nắm trước khi đọc tiếp:</p>
+<ul>
+  <li><strong>Module</strong> gom các class liên quan thành một khối có ranh giới rõ ràng. Mọi ứng dụng có ít nhất một root module (<c>AppModule</c>).</li>
+  <li><strong>Provider + DI</strong>: class đánh dấu <c>@Injectable()</c> được Nest tạo instance và "tiêm" vào constructor của class khác. Bạn không tự gọi <c>new</c>.</li>
+  <li><strong>Decorator + metadata</strong>: <c>@Controller</c>, <c>@Get</c>, <c>@UseGuards</c>… gắn metadata lên class/method, Nest đọc metadata đó lúc khởi động để dựng route và pipeline xử lý request.</li>
+</ul>
+
+<h3>Phiên bản: v11 và v12</h3>
+<p>Trang docs.nestjs.com hiện hiển thị tài liệu Nest 12; bản v11 nằm ở <a href="https://docs.nestjs.com/v11" target="_blank" rel="noopener">docs.nestjs.com/v11</a>. Phần lớn khái niệm giống hệt nhau. Bảng dưới liệt kê những chỗ khác nhau đáng chú ý.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Chủ đề</th><th>Nest 11</th><th>Nest 12</th></tr></thead>
+<tbody>
+<tr><td>Node.js</td><td>≥ 20</td><td>≥ 20.19 / 22.12; CLI cần 22.22.3+</td></tr>
+<tr><td>Module system</td><td>CommonJS</td><td>Package lõi là ESM-only (app CJS vẫn chạy qua <c>require(esm)</c>)</td></tr>
+<tr><td>Test runner mặc định</td><td>Jest</td><td>Vitest (ESM) hoặc Jest (CJS)</td></tr>
+<tr><td>Express</td><td>Express 5 (wildcard phải đặt tên: <c>*splat</c>)</td><td>Giữ nguyên</td></tr>
+<tr><td>HTTP client</td><td><c>@nestjs/axios</c> (<c>HttpService</c>, Observable)</td><td><c>@nestjs/http-client</c> (fetch, Promise, retry sẵn)</td></tr>
+<tr><td>Auth</td><td>Tự viết với <c>@nestjs/jwt</c> / Passport</td><td>Thêm <c>@nestjs/authentication</c>, <c>@nestjs/authorization</c></td></tr>
+<tr><td>Security headers, CSRF, cookies</td><td>Dùng <c>helmet</c>, <c>csrf-csrf</c>, <c>cookie-parser</c></td><td>Có sẵn: <c>app.useSecurityHeaders()</c>, <c>app.enableCsrfProtection()</c>, <c>@Cookies()</c></td></tr>
+<tr><td>Validation</td><td><c>ValidationPipe</c> + class-validator</td><td>Thêm <c>StandardSchemaValidationPipe</c> (Zod, Valibot, ArkType)</td></tr>
+<tr><td>Logger</td><td><c>ConsoleLogger</c> có option <c>json</c></td><td>Thêm structured params: <c>logger.log('msg', {'{'} userId {'}'})</c></td></tr>
+</tbody></table></div>
+<div class="note proj"><span class="nt">Dự án của bạn</span><p>Service <c>api/</c> đang dùng NestJS 11 + Mongoose 8 + RabbitMQ (<c>@golevelup/nestjs-rabbitmq</c>). Các mục gắn nhãn <span class="badge b-v12">v12</span> trong sổ tay này chưa dùng được cho tới khi nâng cấp.</p></div>
+
+<h3>Cài đặt và tạo project</h3>
+<pre data-lang="bash">
+npm i -g @nestjs/cli
+nest new my-app          # hỏi package manager; v12 hỏi thêm ESM hay CommonJS
+cd my-app
+npm run start:dev        # chạy watch mode, mặc định cổng 3000
+</pre>
+<p>Cấu trúc project được tạo ra:</p>
+<pre data-lang="text">
+src/
+├── app.controller.ts       # controller mẫu với 1 route GET /
+├── app.controller.spec.ts  # unit test cho controller
+├── app.module.ts           # root module
+├── app.service.ts          # service mẫu
+└── main.ts                 # điểm khởi động: tạo app bằng NestFactory
+test/
+└── app.e2e-spec.ts         # e2e test
+nest-cli.json               # cấu hình CLI (builder, plugin, assets…)
+</pre>
+
+<h3>File main.ts</h3>
+<p><c>NestFactory.create()</c> đọc root module, dựng toàn bộ cây DI, đăng ký route rồi trả về instance ứng dụng. Mọi cấu hình toàn cục (prefix, CORS, pipe global…) đặt ở đây.</p>
+<pre data-lang="ts" data-file="src/main.ts">
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,     // giữ log khởi động cho tới khi gắn logger tùy chỉnh
+    rawBody: true,        // cần khi verify chữ ký webhook (Shopify, Stripe…)
+  });
+
+  app.setGlobalPrefix('api');                     // mọi route bắt đầu bằng /api
+  app.enableVersioning({ type: VersioningType.URI }); // /api/v1/...
+  app.enableCors({ origin: ['https://admin.example.com'], credentials: true });
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.enableShutdownHooks();                      // để onModuleDestroy chạy khi nhận SIGTERM
+
+  await app.listen(process.env.PORT ?? 3000);
+}
+bootstrap();
+</pre>
+
+<h3>Chọn HTTP adapter</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Adapter</th><th>Package</th><th>Khi nào dùng</th></tr></thead>
+<tbody>
+<tr><td>Express (mặc định)</td><td><c>@nestjs/platform-express</c></td><td>Hệ sinh thái middleware lớn nhất, tương thích tốt nhất với thư viện bên ngoài.</td></tr>
+<tr><td>Fastify</td><td><c>@nestjs/platform-fastify</c></td><td>Cần throughput cao. Lưu ý: middleware nhận req/res thô, không hỗ trợ sub-domain routing, phải <c>listen(port, '0.0.0.0')</c> khi chạy trong container.</td></tr>
+<tr><td>Node <span class="badge b-v12">v12.3</span></td><td><c>@nestjs/platform-node</c></td><td>Nhanh nhất theo benchmark của Nest, sẽ là mặc định từ v13. Thiếu vài API của Express như <c>res.download</c>.</td></tr>
+</tbody></table></div>
+<pre data-lang="ts">
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+
+const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ logger: true }));
+await app.listen(3000, '0.0.0.0');
+</pre>
+</section>
+
+<section class="doc" id="kien-truc" data-group="Bắt đầu">
+<h2>Kiến trúc và vòng đời request</h2>
+<p>Nest có tám loại "viên gạch". Hiểu mỗi loại làm gì và chạy ở đâu trong vòng đời request là phần quan trọng nhất của framework.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Thành phần</th><th>Interface / decorator</th><th>Trách nhiệm</th></tr></thead>
+<tbody>
+<tr><td>Module</td><td><c>@Module()</c></td><td>Gom và đóng gói controller, provider; khai báo phụ thuộc giữa các phần.</td></tr>
+<tr><td>Controller</td><td><c>@Controller()</c></td><td>Nhận request, gọi service, trả response. Không chứa business logic.</td></tr>
+<tr><td>Provider</td><td><c>@Injectable()</c></td><td>Service, repository, factory, helper… mọi thứ được DI quản lý.</td></tr>
+<tr><td>Middleware</td><td><c>NestMiddleware</c></td><td>Chạy trước khi Nest biết route nào sẽ xử lý. Hợp với log thô, gắn request-id, parse body.</td></tr>
+<tr><td>Guard</td><td><c>CanActivate</c></td><td>Quyết định request có được đi tiếp hay không (xác thực, phân quyền).</td></tr>
+<tr><td>Interceptor</td><td><c>NestInterceptor</c></td><td>Bọc quanh handler: chạy logic trước và sau, biến đổi kết quả, cache, timeout.</td></tr>
+<tr><td>Pipe</td><td><c>PipeTransform</c></td><td>Validate và chuyển đổi tham số đầu vào của handler.</td></tr>
+<tr><td>Exception filter</td><td><c>ExceptionFilter</c></td><td>Bắt exception chưa được xử lý và định dạng response lỗi.</td></tr>
+</tbody></table></div>
+
+<h3>Thứ tự xử lý một request</h3>
+<p>Thứ tự dưới đây lấy từ trang FAQ "Request lifecycle" của docs chính thức.</p>
+<ol class="pipeline">
+  <li class="k-in"><b>Request đến</b><span>Adapter (Express/Fastify) nhận HTTP request.</span></li>
+  <li><b>Middleware</b><span>Middleware global (<c>app.use</c>) → middleware gắn theo module. Module <c>@Global()</c> chạy trước, root module, rồi các module khác theo khoảng cách tới root.</span></li>
+  <li class="k-guard"><b>Guards</b><span>Global → controller → route. Guard nào trả <c>false</c> thì dừng với 403.</span></li>
+  <li class="k-int"><b>Interceptors (trước handler)</b><span>Global → controller → route.</span></li>
+  <li class="k-pipe"><b>Pipes</b><span>Global → controller → route → pipe gắn trên từng tham số (tham số cuối chạy trước).</span></li>
+  <li class="k-core"><b>Controller handler</b><span>Method gắn <c>@Get</c>/<c>@Post</c>… được gọi.</span></li>
+  <li class="k-core"><b>Service</b><span>Business logic, gọi DB, gọi API ngoài.</span></li>
+  <li class="k-int"><b>Interceptors (sau handler)</b><span>Chiều ngược lại: route → controller → global.</span></li>
+  <li class="k-guard"><b>Exception filters</b><span>Chỉ chạy khi có exception chưa bắt. Route → controller → global, và chỉ <em>một</em> filter xử lý (không chạy nối tiếp).</span></li>
+  <li class="k-in"><b>Response</b><span>Adapter gửi kết quả về client.</span></li>
+</ol>
+
+<h3>Bốn cách gắn guard / interceptor / pipe / filter</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Phạm vi</th><th>Cách gắn</th><th>Có DI?</th></tr></thead>
+<tbody>
+<tr><td>Một route</td><td><c>@UseGuards(X)</c> trên method</td><td>Có (nếu truyền class)</td></tr>
+<tr><td>Cả controller</td><td><c>@UseGuards(X)</c> trên class</td><td>Có</td></tr>
+<tr><td>Toàn app, ngoài DI</td><td><c>app.useGlobalGuards(new X())</c> trong main.ts</td><td>Không, phải tự <c>new</c></td></tr>
+<tr><td>Toàn app, trong DI</td><td><c>{'{'} provide: APP_GUARD, useClass: X {'}'}</c> trong một module</td><td>Có, đây là cách nên dùng</td></tr>
+</tbody></table></div>
+<p>Tương tự có <c>APP_INTERCEPTOR</c>, <c>APP_PIPE</c>, <c>APP_FILTER</c> (import từ <c>@nestjs/core</c>). Truyền <strong>class</strong> thay vì instance để Nest tự tạo và inject phụ thuộc.</p>
+<pre data-lang="ts" data-file="src/app.module.ts">
+import { Module } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+
+@Module({
+  providers: [
+    { provide: APP_GUARD, useClass: AuthGuard },            // chạy trước
+    { provide: APP_GUARD, useClass: RolesGuard },           // chạy sau (theo thứ tự đăng ký)
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+  ],
+})
+export class AppModule {}
+</pre>
+</section>
+
+<section class="doc" id="controllers" data-group="Nền tảng">
+<h2>Controllers</h2>
+<p>Controller nhận request và trả response. Decorator <c>@Controller('cats')</c> đặt prefix đường dẫn; decorator HTTP method trên từng method khai báo route con.</p>
+<pre data-lang="ts" data-file="src/cats/cats.controller.ts">
+import {
+  Body, Controller, Delete, Get, HttpCode, HttpStatus, Param,
+  ParseIntPipe, Patch, Post, Query, Header, Redirect,
+} from '@nestjs/common';
+import { CatsService } from './cats.service';
+import { CreateCatDto, UpdateCatDto, ListCatsQuery } from './dto';
+
+@Controller('cats')                         // prefix: /cats
+export class CatsController {
+  constructor(private readonly catsService: CatsService) {}
+
+  @Post()                                   // POST /cats  → mặc định 201
+  create(@Body() dto: CreateCatDto) {
+    return this.catsService.create(dto);
+  }
+
+  @Get()                                    // GET /cats?page=1&limit=20
+  findAll(@Query() query: ListCatsQuery) {
+    return this.catsService.findAll(query);
+  }
+
+  @Get(':id')                               // GET /cats/42
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.catsService.findOne(id);
+  }
+
+  @Patch(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCatDto) {
+    return this.catsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)          // đổi status mặc định 200 → 204
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.catsService.remove(id);
+  }
+
+  @Get('docs')
+  @Redirect('https://docs.nestjs.com', 302)
+  docs() {}
+
+  @Get('export.csv')
+  @Header('Content-Type', 'text/csv')
+  exportCsv() {
+    return 'id,name\n1,Tom';
+  }
+}
+</pre>
+<p>Controller phải được khai báo trong mảng <c>controllers</c> của một module thì Nest mới đăng ký route.</p>
+
+<h3>Decorator lấy dữ liệu request</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Decorator</th><th>Tương đương</th></tr></thead>
+<tbody>
+<tr><td><c>@Param(key?)</c></td><td><c>req.params</c> / <c>req.params[key]</c></td></tr>
+<tr><td><c>@Query(key?)</c></td><td><c>req.query</c></td></tr>
+<tr><td><c>@Body(key?)</c></td><td><c>req.body</c></td></tr>
+<tr><td><c>@Headers(name?)</c></td><td><c>req.headers</c></td></tr>
+<tr><td><c>@Ip()</c></td><td><c>req.ip</c></td></tr>
+<tr><td><c>@HostParam(name)</c></td><td>tham số trong host (sub-domain routing)</td></tr>
+<tr><td><c>@Session()</c></td><td><c>req.session</c></td></tr>
+<tr><td><c>@Req()</c> / <c>@Res()</c> / <c>@Next()</c></td><td>đối tượng gốc của Express/Fastify</td></tr>
+<tr><td><c>@Cookies(name?)</c> <span class="badge b-v12">v12.1</span></td><td>cookie đã parse sẵn, không cần cookie-parser</td></tr>
+</tbody></table></div>
+
+<h3>Giá trị trả về và @Res()</h3>
+<p>Handler có thể trả về giá trị thường, <c>Promise</c> hoặc <c>Observable</c>. Nest tự serialize object/array thành JSON. Status mặc định là 200, riêng POST là 201.</p>
+<p>Khi inject <c>@Res()</c>, bạn chuyển sang chế độ "tự quản response": Nest không gửi response giùm nữa, interceptor và <c>@HttpCode</c> không còn tác dụng. Nếu chỉ cần set cookie hay header, dùng <c>passthrough</c>:</p>
+<pre data-lang="ts">
+@Get()
+findAll(@Res({ passthrough: true }) res: Response) {
+  res.setHeader('X-Total-Count', '120');
+  return this.catsService.findAll();   // Nest vẫn gửi body như bình thường
+}
+</pre>
+
+<h3>Thứ tự route và wildcard</h3>
+<ul>
+  <li>Route được đăng ký theo thứ tự khai báo. Nếu <c>@Get(':id')</c> đứng trước <c>@Get('me')</c>, request <c>/users/me</c> sẽ rơi vào <c>:id</c>. Luôn đặt route tĩnh lên trước route có tham số.</li>
+  <li>Express 5 (Nest 11+) bắt buộc wildcard có tên: dùng <c>'files/*path'</c> hoặc <c>'files/{*path}'</c> (dạng có ngoặc nhọn khớp cả <c>/files</c>). Dạng <c>'*'</c> trần đã deprecated.</li>
+  <li>Sub-domain: <c>@Controller({'{'} host: ':account.example.com' {'}'})</c> rồi đọc bằng <c>@HostParam('account')</c> (không hỗ trợ trên Fastify).</li>
+</ul>
+<div class="note tip"><span class="nt">Mẹo</span><p>DTO phải là <strong>class</strong>, không phải <c>interface</c>. Interface bị xóa khi biên dịch nên <c>ValidationPipe</c> và Swagger không đọc được kiểu. Cũng đừng dùng <c>import type</c> cho DTO.</p></div>
+</section>
+
+<section class="doc" id="providers" data-group="Nền tảng">
+<h2>Providers và Dependency Injection</h2>
+<p>Provider là bất kỳ class nào được đánh dấu <c>@Injectable()</c> và khai báo trong <c>providers</c> của module. Nest tạo instance (mặc định là singleton, mỗi app một instance) và inject vào nơi cần qua constructor.</p>
+<pre data-lang="ts" data-file="src/cats/cats.service.ts">
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Cat } from './schemas/cat.schema';
+
+@Injectable()
+export class CatsService {
+  constructor(@InjectModel(Cat.name) private readonly catModel: Model<Cat>) {}
+
+  async findOne(id: string) {
+    const cat = await this.catModel.findById(id).lean();
+    if (!cat) throw new NotFoundException(`Cat ${id} not found`);
+    return cat;
+  }
+}
+</pre>
+
+<h3>Nest resolve phụ thuộc thế nào</h3>
+<ol>
+  <li>Lúc khởi động, Nest đọc kiểu tham số constructor (TypeScript phát metadata <c>design:paramtypes</c> nhờ <c>emitDecoratorMetadata</c>).</li>
+  <li>Kiểu đó chính là <strong>token</strong>. Nest tìm provider có token tương ứng trong module hiện tại, rồi trong các module được import (chỉ những gì chúng <c>exports</c>).</li>
+  <li>Nếu chưa có instance thì tạo, đệ quy cho phụ thuộc của nó, rồi cache lại.</li>
+</ol>
+<p>Vì token lấy từ kiểu runtime, bạn <strong>không</strong> thể inject bằng interface hay <c>import type</c>. Khi đó dùng token chuỗi/Symbol với <c>@Inject()</c>, hoặc dùng abstract class làm token (xem <a href="#p-repository">Repository pattern</a>).</p>
+<pre data-lang="ts">
+export const PAYMENT_GATEWAY = Symbol('PAYMENT_GATEWAY');
+
+@Injectable()
+export class CheckoutService {
+  constructor(
+    @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway, // token Symbol
+    @Optional() private readonly metrics?: MetricsService,             // không có cũng không lỗi
+  ) {}
+}
+</pre>
+<div class="note warn"><span class="nt">Lỗi hay gặp</span><p><c>Nest can't resolve dependencies of the CatsService (?)</c>: dấu <c>?</c> chỉ vị trí tham số không resolve được. Thường do (1) quên thêm provider vào module, (2) module chứa provider chưa <c>exports</c> nó, (3) module hiện tại chưa <c>imports</c> module kia, hoặc (4) circular import khiến kiểu là <c>undefined</c>.</p></div>
+</section>
+
+<section class="doc" id="modules" data-group="Nền tảng">
+<h2>Modules</h2>
+<p>Module là đơn vị tổ chức code. Metadata của <c>@Module()</c> có bốn khóa:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Khóa</th><th>Ý nghĩa</th></tr></thead>
+<tbody>
+<tr><td><c>imports</c></td><td>Các module khác mà module này cần dùng provider của chúng.</td></tr>
+<tr><td><c>controllers</c></td><td>Controller thuộc module này.</td></tr>
+<tr><td><c>providers</c></td><td>Provider được tạo trong module này, dùng nội bộ.</td></tr>
+<tr><td><c>exports</c></td><td>Tập con của providers (hoặc module đã import) mà module khác được phép dùng.</td></tr>
+</tbody></table></div>
+<pre data-lang="ts" data-file="src/cats/cats.module.ts">
+@Module({
+  imports: [MongooseModule.forFeature([{ name: Cat.name, schema: CatSchema }])],
+  controllers: [CatsController],
+  providers: [CatsService, CatsRepository],
+  exports: [CatsService],          // module khác import CatsModule sẽ dùng được CatsService
+})
+export class CatsModule {}
+</pre>
+
+<h3>Đóng gói (encapsulation)</h3>
+<p>Provider mặc định là "private" trong module. Muốn dùng <c>CatsService</c> trong <c>OrdersModule</c>, bạn phải export ở <c>CatsModule</c> <strong>và</strong> import <c>CatsModule</c> trong <c>OrdersModule</c>. Đừng khai báo lại <c>CatsService</c> trong providers của module khác: làm vậy tạo ra instance thứ hai, mất tính singleton.</p>
+
+<h3>Re-export và module dùng chung</h3>
+<pre data-lang="ts">
+@Module({
+  imports: [DatabaseModule, RedisModule],
+  exports: [DatabaseModule, RedisModule],   // ai import CoreModule sẽ có luôn cả hai
+})
+export class CoreModule {}
+</pre>
+
+<h3>Global module</h3>
+<p><c>@Global()</c> khiến các export của module có mặt ở mọi nơi mà không cần import. Hợp với thứ thật sự dùng khắp nơi như config, logger, Redis client. Đừng lạm dụng: global làm mất dấu vết phụ thuộc và khó test.</p>
+<pre data-lang="ts">
+@Global()
+@Module({ providers: [RedisService], exports: [RedisService] })
+export class RedisModule {}
+</pre>
+<p>Module có thể nhận cấu hình lúc import (dynamic module, như <c>MongooseModule.forRoot(uri)</c>). Phần này được trình bày riêng ở mục <a href="#dynamic-modules">Dynamic modules</a>.</p>
+</section>
+
+<section class="doc" id="middleware" data-group="Nền tảng">
+<h2>Middleware</h2>
+<p>Middleware chạy <strong>trước</strong> guard, khi Nest chưa xác định handler nào sẽ xử lý. Vì vậy middleware không biết controller/method đích, không đọc được metadata của decorator. Dùng nó cho việc cấp thấp: gắn request-id, log thô, parse body, CORS tùy biến.</p>
+<pre data-lang="ts" data-file="src/common/request-id.middleware.ts">
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { NextFunction, Request, Response } from 'express';
+
+@Injectable()
+export class RequestIdMiddleware implements NestMiddleware {
+  use(req: Request, res: Response, next: NextFunction) {
+    const id = (req.headers['x-request-id'] as string) ?? randomUUID();
+    req.headers['x-request-id'] = id;
+    res.setHeader('x-request-id', id);
+    next();                       // quên gọi next() thì request treo
+  }
+}
+
+// middleware dạng hàm: không cần DI thì nên dùng dạng này
+export function timing(req: Request, res: Response, next: NextFunction) {
+  const start = Date.now();
+  res.on('finish', () => console.log(`${req.method} ${req.originalUrl} ${Date.now() - start}ms`));
+  next();
+}
+</pre>
+<p>Middleware không khai báo trong <c>@Module()</c> mà đăng ký bằng method <c>configure()</c> của module (implement <c>NestModule</c>):</p>
+<pre data-lang="ts">
+@Module({ controllers: [CatsController] })
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(RequestIdMiddleware, timing)
+      .exclude({ path: 'health', method: RequestMethod.GET })
+      .forRoutes('{*splat}');          // mọi route (cú pháp Express 5)
+
+    consumer
+      .apply(ShopifyHmacMiddleware)
+      .forRoutes({ path: 'webhooks/*path', method: RequestMethod.POST }, WebhooksController);
+  }
+}
+</pre>
+<ul>
+  <li><c>forRoutes</c> nhận chuỗi path, object <c>{'{'} path, method {'}'}</c> hoặc class controller.</li>
+  <li>Middleware global không cần DI: <c>app.use(timing)</c> trong main.ts.</li>
+  <li>Exception ném ra trong middleware chỉ được xử lý bởi exception filter <strong>global</strong>.</li>
+</ul>
+</section>
+
+<section class="doc" id="exception-filters" data-group="Nền tảng">
+<h2>Exception filters</h2>
+<p>Nest có sẵn một exception layer toàn cục. Exception là <c>HttpException</c> (hoặc lớp con) được trả về đúng status và body; mọi lỗi khác trở thành <c>500 {'{'} "statusCode": 500, "message": "Internal server error" {'}'}</c>.</p>
+
+<h3>Ném lỗi HTTP</h3>
+<pre data-lang="ts">
+throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+// → { "statusCode": 403, "message": "Forbidden" }
+
+throw new HttpException({ code: 'QUOTA_EXCEEDED', limit: 1000 }, 429);
+// object thay thế toàn bộ body
+
+throw new BadRequestException('Email đã tồn tại', {
+  cause: err,                      // chỉ dùng để log, không gửi cho client
+  description: 'Duplicate email',  // điền vào trường "error"
+});
+// → { "statusCode": 400, "message": "Email đã tồn tại", "error": "Duplicate email" }
+</pre>
+<p>Các exception dựng sẵn trong <c>@nestjs/common</c>: <c>BadRequestException</c>, <c>UnauthorizedException</c>, <c>ForbiddenException</c>, <c>NotFoundException</c>, <c>MethodNotAllowedException</c>, <c>NotAcceptableException</c>, <c>RequestTimeoutException</c>, <c>ConflictException</c>, <c>GoneException</c>, <c>PreconditionFailedException</c>, <c>PayloadTooLargeException</c>, <c>UnsupportedMediaTypeException</c>, <c>UnprocessableEntityException</c>, <c>ImATeapotException</c>, <c>MisdirectedException</c>, <c>InternalServerErrorException</c>, <c>NotImplementedException</c>, <c>BadGatewayException</c>, <c>ServiceUnavailableException</c>, <c>GatewayTimeoutException</c>, <c>HttpVersionNotSupportedException</c>.</p>
+
+<h3>Viết filter riêng</h3>
+<p>Filter implement <c>ExceptionFilter</c>, method <c>catch(exception, host)</c> nhận exception và <c>ArgumentsHost</c> để lấy request/response. <c>@Catch(Type)</c> giới hạn loại exception; <c>@Catch()</c> rỗng bắt tất cả.</p>
+<pre data-lang="ts" data-file="src/common/all-exceptions.filter.ts">
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
+
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger(AllExceptionsFilter.name);
+
+  constructor(private readonly adapterHost: HttpAdapterHost) {}
+
+  catch(exception: unknown, host: ArgumentsHost) {
+    const { httpAdapter } = this.adapterHost;       // dùng adapter để chạy được cả Express lẫn Fastify
+    const ctx = host.switchToHttp();
+    const req = ctx.getRequest();
+
+    const status = exception instanceof HttpException
+      ? exception.getStatus()
+      : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    const body = exception instanceof HttpException
+      ? exception.getResponse()
+      : { message: 'Internal server error' };
+
+    if (status >= 500) this.logger.error(exception);
+
+    httpAdapter.reply(ctx.getResponse(), {
+      success: false,
+      statusCode: status,
+      path: httpAdapter.getRequestUrl(req),
+      timestamp: new Date().toISOString(),
+      error: body,
+    }, status);
+  }
+}
+</pre>
+<p>Gắn filter: <c>@UseFilters(HttpExceptionFilter)</c> trên method/controller, hoặc toàn cục bằng <c>{'{'} provide: APP_FILTER, useClass: AllExceptionsFilter {'}'}</c>. Muốn giữ hành vi mặc định và chỉ thêm chút logic, kế thừa <c>BaseExceptionFilter</c> rồi gọi <c>super.catch()</c>.</p>
+<div class="note warn"><span class="nt">Lưu ý</span><ul><li><c>app.useGlobalFilters()</c> không áp dụng cho WebSocket gateway và microservice trong hybrid app.</li><li>Filter không chạy nối tiếp: filter cấp route đã bắt thì filter global không thấy exception đó.</li><li>Trên Fastify dùng <c>response.send()</c> thay vì <c>response.json()</c>.</li></ul></div>
+</section>
+
+<section class="doc" id="pipes" data-group="Nền tảng">
+<h2>Pipes</h2>
+<p>Pipe chạy ngay trước handler, nhận giá trị tham số và làm một trong hai việc: <strong>transform</strong> (đổi chuỗi <c>"42"</c> thành số <c>42</c>) hoặc <strong>validate</strong> (ném exception nếu dữ liệu sai, khi đó handler không được gọi).</p>
+<h3>Pipe có sẵn</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Pipe</th><th>Công dụng</th></tr></thead>
+<tbody>
+<tr><td><c>ValidationPipe</c></td><td>Validate DTO bằng class-validator</td></tr>
+<tr><td><c>ParseIntPipe</c>, <c>ParseFloatPipe</c>, <c>ParseBoolPipe</c></td><td>Chuyển và kiểm tra kiểu số / boolean</td></tr>
+<tr><td><c>ParseArrayPipe</c></td><td>Tách chuỗi thành mảng, validate từng phần tử</td></tr>
+<tr><td><c>ParseUUIDPipe</c>, <c>ParseEnumPipe</c></td><td>Kiểm tra UUID / giá trị enum</td></tr>
+<tr><td><c>ParseDatePipe</c> <span class="badge b-v11">v11</span></td><td>Chuyển chuỗi thành <c>Date</c></td></tr>
+<tr><td><c>DefaultValuePipe</c></td><td>Gán giá trị mặc định khi tham số thiếu</td></tr>
+<tr><td><c>ParseFilePipe</c></td><td>Validate file upload</td></tr>
+<tr><td><c>StandardSchemaValidationPipe</c> <span class="badge b-v12">v12.1</span></td><td>Validate bằng Zod/Valibot/ArkType</td></tr>
+</tbody></table></div>
+<pre data-lang="ts">
+@Get()
+list(
+  @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+  @Query('ids', new ParseArrayPipe({ items: Number, separator: ',', optional: true })) ids?: number[],
+  @Query('status', new ParseEnumPipe(OrderStatus, { optional: true })) status?: OrderStatus,
+) {}
+
+@Get(':uuid')
+get(@Param('uuid', new ParseUUIDPipe({ version: '4' })) uuid: string) {}
+
+@Get(':id')
+find(@Param('id', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE })) id: number) {}
+</pre>
+
+<h3>Viết pipe riêng</h3>
+<p>Ví dụ: pipe kiểm tra chuỗi là MongoDB ObjectId hợp lệ, tránh lỗi <c>CastError</c> từ Mongoose.</p>
+<pre data-lang="ts" data-file="src/common/parse-object-id.pipe.ts">
+import { ArgumentMetadata, BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
+import { Types } from 'mongoose';
+
+@Injectable()
+export class ParseObjectIdPipe implements PipeTransform<string, Types.ObjectId> {
+  transform(value: string, metadata: ArgumentMetadata) {
+    // metadata = { type: 'param' | 'query' | 'body' | 'custom', metatype, data: 'id' }
+    if (!Types.ObjectId.isValid(value)) {
+      throw new BadRequestException(`${metadata.data} không phải ObjectId hợp lệ`);
+    }
+    return new Types.ObjectId(value);
+  }
+}
+
+// dùng:
+@Get(':id')
+findOne(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {}
+</pre>
+<p>Validate DTO với <c>ValidationPipe</c> là chủ đề lớn, được trình bày ở mục <a href="#validation">Validation và Serialization</a>.</p>
+</section>
+
+<section class="doc" id="guards" data-group="Nền tảng">
+<h2>Guards</h2>
+<p>Guard có một trách nhiệm: trả lời "request này có được đi tiếp không". Khác middleware, guard có <c>ExecutionContext</c> nên biết handler và controller đích, đọc được metadata do decorator gắn. Vì vậy xác thực và phân quyền đặt ở guard.</p>
+<pre data-lang="ts" data-file="src/auth/roles.decorator.ts">
+import { Reflector } from '@nestjs/core';
+
+export type Role = 'admin' | 'staff' | 'merchant';
+export const Roles = Reflector.createDecorator<Role[]>();   // tạo decorator có kiểu
+</pre>
+<pre data-lang="ts" data-file="src/auth/roles.guard.ts">
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { Roles } from './roles.decorator';
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    // ưu tiên metadata trên method, nếu không có thì lấy trên class
+    const required = this.reflector.getAllAndOverride(Roles, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!required?.length) return true;
+
+    const { user } = context.switchToHttp().getRequest();
+    return required.some((role) => user?.roles?.includes(role));
+  }
+}
+</pre>
+<pre data-lang="ts">
+@Controller('settings')
+@UseGuards(AuthGuard, RolesGuard)
+export class SettingsController {
+  @Patch()
+  @Roles(['admin'])
+  update(@Body() dto: UpdateSettingsDto) {}
+}
+</pre>
+<ul>
+  <li>Guard trả <c>false</c> → Nest ném <c>ForbiddenException</c> (403, "Forbidden resource"). Muốn 401 hoặc message khác thì tự <c>throw</c>.</li>
+  <li><c>canActivate</c> có thể trả <c>boolean</c>, <c>Promise&lt;boolean&gt;</c> hoặc <c>Observable&lt;boolean&gt;</c>.</li>
+  <li>Nhiều <c>APP_GUARD</c> chạy theo thứ tự đăng ký. Ví dụ đầy đủ về JWT ở mục <a href="#security">Bảo mật</a>.</li>
+</ul>
+</section>
+
+<section class="doc" id="interceptors" data-group="Nền tảng">
+<h2>Interceptors</h2>
+<p>Interceptor bọc quanh lời gọi handler theo kiểu AOP. Method <c>intercept(context, next)</c> chạy logic trước, gọi <c>next.handle()</c> để thực thi handler (trả về <c>Observable</c>), rồi dùng toán tử RxJS để xử lý kết quả. Không gọi <c>next.handle()</c> thì handler không chạy.</p>
+<h3>Đo thời gian xử lý</h3>
+<pre data-lang="ts">
+@Injectable()
+export class LoggingInterceptor implements NestInterceptor {
+  private readonly logger = new Logger('HTTP');
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const req = context.switchToHttp().getRequest();
+    const start = Date.now();
+    return next.handle().pipe(
+      finalize(() => this.logger.log(`${req.method} ${req.url} ${Date.now() - start}ms`)),
+    );
+  }
+}
+</pre>
+<h3>Bọc response theo một format chung</h3>
+<pre data-lang="ts">
+export interface Envelope<T> { success: true; data: T }
+
+@Injectable()
+export class ResponseInterceptor<T> implements NestInterceptor<T, Envelope<T>> {
+  intercept(_: ExecutionContext, next: CallHandler<T>): Observable<Envelope<T>> {
+    return next.handle().pipe(map((data) => ({ success: true, data })));
+  }
+}
+</pre>
+<h3>Đổi exception và đặt timeout</h3>
+<pre data-lang="ts">
+@Injectable()
+export class TimeoutInterceptor implements NestInterceptor {
+  intercept(_: ExecutionContext, next: CallHandler) {
+    return next.handle().pipe(
+      timeout(5000),
+      catchError((err) =>
+        err instanceof TimeoutError
+          ? throwError(() => new RequestTimeoutException())
+          : throwError(() => err),
+      ),
+    );
+  }
+}
+</pre>
+<h3>Bỏ qua handler (cache)</h3>
+<pre data-lang="ts">
+@Injectable()
+export class SimpleCacheInterceptor implements NestInterceptor {
+  constructor(private readonly cache: CacheService) {}
+
+  async intercept(ctx: ExecutionContext, next: CallHandler) {
+    const key = ctx.switchToHttp().getRequest().url;
+    const hit = await this.cache.get(key);
+    if (hit) return of(hit);                       // trả luôn, handler không chạy
+    return next.handle().pipe(tap((data) => this.cache.set(key, data, 60_000)));
+  }
+}
+</pre>
+<div class="note tip"><span class="nt">Ghi nhớ</span><p><c>tap</c> không chạy khi handler lỗi. Cần dọn dẹp trong mọi trường hợp thì dùng <c>finalize</c>. Unsubscribe do timeout không hủy được công việc handler đã bắt đầu.</p></div>
+</section>
+
+<section class="doc" id="decorators" data-group="Nền tảng">
+<h2>Custom decorators</h2>
+<h3>Decorator tham số</h3>
+<p><c>createParamDecorator</c> tạo decorator lấy dữ liệu từ request, giúp controller không phải đụng tới <c>@Req()</c>.</p>
+<pre data-lang="ts" data-file="src/auth/current-shop.decorator.ts">
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+
+export const CurrentShop = createParamDecorator(
+  (field: keyof ShopContext | undefined, ctx: ExecutionContext) => {
+    const shop: ShopContext = ctx.switchToHttp().getRequest().shop; // do guard gắn vào
+    return field ? shop?.[field] : shop;
+  },
+);
+
+// dùng:
+@Get('me')
+me(@CurrentShop() shop: ShopContext, @CurrentShop('domain') domain: string) {}
+</pre>
+<p>Pipe vẫn chạy trên tham số custom. Muốn <c>ValidationPipe</c> validate luôn giá trị từ decorator custom, bật <c>validateCustomDecorators: true</c>.</p>
+
+<h3>Gộp nhiều decorator</h3>
+<p><c>applyDecorators</c> gộp nhiều decorator thành một, rất hợp để chuẩn hóa cách khai báo route bảo mật.</p>
+<pre data-lang="ts">
+import { applyDecorators, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiUnauthorizedResponse } from '@nestjs/swagger';
+
+export function Auth(...roles: Role[]) {
+  return applyDecorators(
+    Roles(roles),
+    UseGuards(AuthGuard, RolesGuard),
+    ApiBearerAuth(),
+    ApiUnauthorizedResponse({ description: 'Unauthorized' }),
+  );
+}
+
+@Delete(':id')
+@Auth('admin')
+remove() {}
+</pre>
+<h3>Decorator metadata đơn giản</h3>
+<pre data-lang="ts">
+import { SetMetadata } from '@nestjs/common';
+export const IS_PUBLIC = 'isPublic';
+export const Public = () => SetMetadata(IS_PUBLIC, true);
+</pre>
+</section>

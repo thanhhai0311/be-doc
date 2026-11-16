@@ -1,0 +1,397 @@
+</div>
+<div class="panel" data-panel="kafka" role="tabpanel" aria-labelledby="tab-kafka" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Tổng hợp từ kafka.apache.org (bản 4.4)</p>
+  <h1>Sổ tay Kafka</h1>
+  <p class="lead">Nền tảng event streaming dạng log phân tán: topic, partition, consumer group, các mức đảm bảo giao nhận, transaction và share group. Có ví dụ cho NestJS, Java client, Spring Kafka, Kafka Streams và các pattern thường gặp.</p>
+  <div class="stats"><span><b>__SECTIONS_kafka__</b> chủ đề</span><span><b>__CODES_kafka__</b> ví dụ code</span><span>Bản mới nhất <b>4.4.0</b> (22/10/2026)</span></div>
+</div>
+
+<section class="doc" id="k-tong-quan" data-group="Khái niệm">
+<h2>Kafka là gì</h2>
+<p>Kafka lưu sự kiện vào các <strong>log chỉ ghi nối</strong> (append-only), chia partition và sao chép trên nhiều broker. Khác message broker truyền thống, message <strong>không bị xóa khi đọc</strong>: mỗi consumer group tự giữ vị trí (offset) của mình, nhiều hệ thống đọc cùng dữ liệu độc lập, và có thể đọc lại từ quá khứ trong thời gian retention.</p>
+<h3>Thay đổi ở 4.x</h3>
+<ul>
+  <li><strong>4.0</strong>: bỏ ZooKeeper, chỉ chạy <strong>KRaft</strong> (controller dùng Raft). Giao thức rebalance mới cho consumer (KIP-848) chính thức, client bật bằng <c>group.protocol=consumer</c>. <c>linger.ms</c> mặc định đổi từ 0 thành 5. Broker cần Java 17; client cần Java 11 trở lên.</li>
+  <li><strong>4.1</strong>: share group (Queues for Kafka, KIP-932) ở dạng preview.</li>
+  <li><strong>4.2</strong>: share group sẵn sàng cho production; giao thức rebalance mới cho Kafka Streams (KIP-1071).</li>
+  <li><strong>4.4</strong>: share group có dead-letter queue (KIP-1191); <c>broker.id</c> deprecated, dùng <c>node.id</c>.</li>
+</ul>
+<pre data-lang="bash">
+docker run -d --name kafka -p 9092:9092 apache/kafka:4.4.0
+
+# hoặc chạy từ bản tải về (KRaft)
+KAFKA_CLUSTER_ID="$(bin/kafka-storage.sh random-uuid)"
+bin/kafka-storage.sh format --standalone -t $KAFKA_CLUSTER_ID -c config/server.properties
+bin/kafka-server-start.sh config/server.properties
+</pre>
+</section>
+
+<section class="doc" id="k-concepts" data-group="Khái niệm">
+<h2>Topic, partition, offset, consumer group</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Khái niệm</th><th>Giải thích</th></tr></thead>
+<tbody>
+<tr><td>Record</td><td>Một sự kiện: key, value, timestamp, headers.</td></tr>
+<tr><td>Topic</td><td>Luồng sự kiện cùng loại, ví dụ <c>orders.created</c>.</td></tr>
+<tr><td>Partition</td><td>Topic chia thành N log độc lập. Đơn vị song song và đơn vị <strong>đảm bảo thứ tự</strong>. Record cùng key luôn vào cùng partition.</td></tr>
+<tr><td>Offset</td><td>Số thứ tự của record trong partition. Vị trí của consumer = offset của record tiếp theo cần đọc.</td></tr>
+<tr><td>Replication factor</td><td>Số bản sao mỗi partition (production thường là 3). Một bản là <strong>leader</strong>, còn lại là follower.</td></tr>
+<tr><td>ISR</td><td>Các replica đang theo kịp leader. Record "committed" khi mọi ISR đã có.</td></tr>
+<tr><td>Consumer group</td><td>Nhóm consumer chia nhau partition: mỗi partition chỉ một consumer trong group đọc tại một thời điểm.</td></tr>
+<tr><td>Rebalance</td><td>Chia lại partition khi consumer vào/ra group. Consumer mới tiếp tục từ offset đã commit.</td></tr>
+</tbody></table></div>
+<pre data-lang="text">
+topic orders.created (3 partition)          consumer group "risk"        consumer group "analytics"
+  P0: [0][1][2][3][4] ─────────────────────►  consumer A (P0, P1)      ─► consumer X (P0, P1, P2)
+  P1: [0][1][2]       ─────────────────────►
+  P2: [0][1][2][3]    ─────────────────────►  consumer B (P2)
+  mỗi group giữ offset riêng → cùng dữ liệu, hai hệ thống đọc độc lập
+</pre>
+<div class="note warn"><span class="nt">Số partition</span><p>Số consumer hoạt động trong một group tối đa bằng số partition; consumer thừa sẽ ngồi chơi. Tăng partition sau này làm thay đổi ánh xạ key → partition (mất thứ tự theo key với dữ liệu cũ), nên hãy chọn dư ngay từ đầu.</p></div>
+</section>
+
+<section class="doc" id="k-producer" data-group="Khái niệm">
+<h2>Producer</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Config</th><th>Mặc định</th><th>Ý nghĩa</th></tr></thead>
+<tbody>
+<tr><td><c>acks</c></td><td><c>all</c></td><td><c>0</c>: không chờ; <c>1</c>: leader ghi xong; <c>all</c>: mọi ISR ghi xong</td></tr>
+<tr><td><c>enable.idempotence</c></td><td><c>true</c></td><td>Retry không tạo bản ghi trùng (producer id + sequence)</td></tr>
+<tr><td><c>retries</c> / <c>delivery.timeout.ms</c></td><td>2147483647 / 120000</td><td>Retry tới khi hết thời gian giao</td></tr>
+<tr><td><c>linger.ms</c> / <c>batch.size</c></td><td>5 / 16384</td><td>Đợi gom batch; tăng để thông lượng cao hơn</td></tr>
+<tr><td><c>compression.type</c></td><td><c>none</c></td><td><c>gzip</c>, <c>snappy</c>, <c>lz4</c>, <c>zstd</c></td></tr>
+<tr><td><c>max.in.flight.requests.per.connection</c></td><td>5</td><td>≤ 5 để idempotence giữ thứ tự</td></tr>
+<tr><td><c>transactional.id</c></td><td>null</td><td>Bật transaction (xem <a href="#k-semantics">Exactly-once</a>)</td></tr>
+</tbody></table></div>
+<p>Partitioner mặc định: có key thì băm key (cùng key → cùng partition → giữ thứ tự); không key thì gom batch vào một partition rồi chuyển sang partition khác ("sticky").</p>
+</section>
+
+<section class="doc" id="k-consumer" data-group="Khái niệm">
+<h2>Consumer và commit offset</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Config</th><th>Mặc định</th><th>Ghi chú</th></tr></thead>
+<tbody>
+<tr><td><c>group.id</c></td><td>null</td><td>Bắt buộc khi dùng consumer group</td></tr>
+<tr><td><c>group.protocol</c></td><td><c>classic</c></td><td><c>consumer</c> = giao thức KIP-848, rebalance nhanh và ít gián đoạn hơn</td></tr>
+<tr><td><c>auto.offset.reset</c></td><td><c>latest</c></td><td>Khi chưa có offset: <c>earliest</c>, <c>latest</c>, <c>none</c>, <c>by_duration:P1D</c></td></tr>
+<tr><td><c>enable.auto.commit</c></td><td><c>true</c></td><td>Tự commit định kỳ; tắt để commit sau khi xử lý xong</td></tr>
+<tr><td><c>max.poll.records</c></td><td>500</td><td>Số record mỗi lần poll</td></tr>
+<tr><td><c>max.poll.interval.ms</c></td><td>300000</td><td>Quá thời gian giữa hai lần poll → bị đá khỏi group</td></tr>
+<tr><td><c>isolation.level</c></td><td><c>read_uncommitted</c></td><td><c>read_committed</c> để bỏ qua record của transaction bị hủy</td></tr>
+<tr><td><c>group.instance.id</c></td><td>null</td><td>Static membership: restart nhanh không gây rebalance</td></tr>
+</tbody></table></div>
+<p><strong>Thứ tự xử lý quyết định ngữ nghĩa</strong>: commit <em>trước</em> khi xử lý là at-most-once (có thể mất); xử lý xong <em>rồi</em> commit là at-least-once (có thể trùng, cách phổ biến nhất). Auto-commit thực chất commit offset của lần poll trước, nên vẫn là at-least-once nếu bạn xử lý xong trước lần poll kế tiếp.</p>
+<div class="note warn"><span class="nt">Xử lý chậm</span><p>Nếu một batch mất lâu hơn <c>max.poll.interval.ms</c>, consumer bị coi là chết, partition chuyển cho consumer khác và batch bị xử lý lại. Giảm <c>max.poll.records</c> hoặc tăng interval cho việc nặng.</p></div>
+</section>
+
+<section class="doc" id="k-semantics" data-group="Khái niệm">
+<h2>Đảm bảo giao nhận và exactly-once</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Mức</th><th>Cách đạt</th></tr></thead>
+<tbody>
+<tr><td>At-most-once</td><td>Commit offset trước khi xử lý</td></tr>
+<tr><td>At-least-once</td><td>Producer <c>acks=all</c> + idempotence; consumer xử lý xong mới commit; consumer idempotent</td></tr>
+<tr><td>Exactly-once (Kafka → Kafka)</td><td>Transaction: ghi output và commit offset input trong cùng một transaction; consumer đọc với <c>read_committed</c></td></tr>
+</tbody></table></div>
+<p>Exactly-once của Kafka chỉ bao trùm dữ liệu nằm trong Kafka. Khi xử lý có tác động ra ngoài (ghi DB, gọi API), vẫn cần consumer idempotent hoặc lưu offset cùng transaction với DB.</p>
+</section>
+
+<section class="doc" id="k-retention" data-group="Khái niệm">
+<h2>Retention, compaction và share group</h2>
+<ul>
+  <li><strong>Retention theo thời gian/dung lượng</strong> (<c>cleanup.policy=delete</c>): xóa segment cũ theo <c>retention.ms</c> / <c>retention.bytes</c> của topic.</li>
+  <li><strong>Log compaction</strong> (<c>cleanup.policy=compact</c>): giữ ít nhất bản ghi mới nhất cho mỗi key. Record value <c>null</c> là <strong>tombstone</strong> (đánh dấu xóa), bị dọn sau <c>delete.retention.ms</c> (mặc định 24 giờ). Dùng cho topic dạng "bảng trạng thái": cấu hình shop, số dư, snapshot.</li>
+  <li>Có thể kết hợp <c>compact,delete</c>.</li>
+</ul>
+<h3>Share group (Queues for Kafka) <span class="badge b-v11">4.2</span></h3>
+<p>Consumer group thường gắn mỗi partition cho một consumer. <strong>Share group</strong> cho phép nhiều consumer cùng đọc một partition, ack từng record và đếm số lần giao, giống work queue của RabbitMQ. Hợp với việc xử lý từng record độc lập mà không cần thứ tự; số consumer không còn bị giới hạn bởi số partition.</p>
+</section>
+
+<section class="doc" id="k-cli" data-group="Khái niệm">
+<h2>Lệnh CLI hay dùng</h2>
+<pre data-lang="bash">
+# tạo topic: 6 partition, 3 bản sao, giữ 7 ngày
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic orders.created \
+  --partitions 6 --replication-factor 3 --config retention.ms=604800000
+
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders.created
+
+# gửi/đọc thử
+bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic orders.created \
+  --property parse.key=true --property key.separator=:
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic orders.created \
+  --from-beginning --property print.key=true
+
+# xem lag của consumer group, reset offset
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group risk
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --group risk --topic orders.created \
+  --reset-offsets --to-datetime 2026-11-15T00:00:00.000 --execute
+
+# đổi config topic
+bin/kafka-configs.sh --bootstrap-server localhost:9092 --alter --entity-type topics \
+  --entity-name shop.settings --add-config cleanup.policy=compact
+</pre>
+</section>
+
+<section class="doc" id="k-so-sanh" data-group="Khái niệm">
+<h2>Chọn RabbitMQ, Kafka hay Redis?</h2>
+<div class="table-wrap"><table>
+<thead><tr><th></th><th>RabbitMQ</th><th>Kafka</th><th>Redis Streams</th><th>Redis Pub/Sub</th></tr></thead>
+<tbody>
+<tr><td>Mô hình</td><td>Queue, xóa khi ack</td><td>Log, giữ theo retention</td><td>Log trong RAM, trim theo MAXLEN</td><td>Phát tức thời, không lưu</td></tr>
+<tr><td>Định tuyến</td><td>Rất linh hoạt (exchange, topic, header)</td><td>Theo topic + key</td><td>Theo stream</td><td>Theo channel/pattern</td></tr>
+<tr><td>Đọc lại quá khứ</td><td>Không (trừ stream)</td><td>Có</td><td>Có (trong giới hạn)</td><td>Không</td></tr>
+<tr><td>Thứ tự</td><td>Theo queue</td><td>Theo partition (key)</td><td>Theo stream</td><td>Không đảm bảo khi mất kết nối</td></tr>
+<tr><td>Retry/DLQ</td><td>Có sẵn (DLX, delivery-limit, delayed retry)</td><td>Tự dựng bằng retry topic (Spring có sẵn)</td><td>Tự dựng bằng XPENDING/XAUTOCLAIM</td><td>Không</td></tr>
+<tr><td>Thông lượng</td><td>Cao</td><td>Rất cao, scale ngang theo partition</td><td>Cao, giới hạn bởi RAM</td><td>Rất cao</td></tr>
+<tr><td>Hợp nhất với</td><td>Task queue, sự kiện nghiệp vụ, RPC</td><td>Event streaming, CDC, analytics, event sourcing</td><td>Queue nhẹ khi đã có Redis</td><td>Thông báo realtime, invalidate cache</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="k-nest" data-group="Sử dụng">
+<h2>Dùng trong NestJS</h2>
+<p><c>@nestjs/microservices</c> có <c>Transport.KAFKA</c> dựa trên thư viện <c>kafkajs</c>. Lưu ý KafkaJS ít được bảo trì gần đây; Confluent phát hành <c>@confluentinc/kafka-javascript</c> có API tương thích KafkaJS nếu bạn cần client được hỗ trợ chính thức.</p>
+<pre data-lang="ts" data-file="src/main.ts">
+const app = await NestFactory.create(AppModule);
+app.connectMicroservice<MicroserviceOptions>({
+  transport: Transport.KAFKA,
+  options: {
+    client: { clientId: 'risk', brokers: process.env.KAFKA_BROKERS!.split(',') },
+    consumer: { groupId: 'risk', sessionTimeout: 45_000 },
+    run: { autoCommit: false },                // tự commit sau khi xử lý
+    subscribe: { fromBeginning: false },
+  },
+});
+await app.startAllMicroservices();
+await app.listen(3000);
+</pre>
+<pre data-lang="ts">
+@Controller()
+export class OrdersConsumer {
+  @EventPattern('orders.created')
+  async onCreated(@Payload() order: OrderEvent, @Ctx() ctx: KafkaContext) {
+    const { offset } = ctx.getMessage();
+    await this.risk.score(order);
+    await ctx.getConsumer().commitOffsets([
+      { topic: ctx.getTopic(), partition: ctx.getPartition(), offset: (BigInt(offset) + 1n).toString() },
+    ]);
+  }
+}
+
+// producer
+@Module({
+  imports: [ClientsModule.register([{
+    name: 'KAFKA',
+    transport: Transport.KAFKA,
+    options: { client: { clientId: 'api', brokers: ['localhost:9092'] }, producerOnlyMode: true },
+  }])],
+})
+export class EventsModule {}
+
+@Injectable()
+export class OrderEvents implements OnModuleInit {
+  constructor(@Inject('KAFKA') private readonly kafka: ClientKafka) {}   // Nest 12 đổi tên thành ClientKafkaProxy
+  async onModuleInit() { await this.kafka.connect(); }
+
+  created(order: OrderEvent) {
+    // key = shop → mọi sự kiện của một shop vào cùng partition, giữ thứ tự
+    return this.kafka.emit('orders.created', { key: order.shop, value: JSON.stringify(order) });
+  }
+}
+</pre>
+</section>
+
+<section class="doc" id="k-java" data-group="Sử dụng">
+<h2>Dùng trong Java</h2>
+<h3>kafka-clients <span class="badge b-pkg">lib</span></h3>
+<pre data-lang="java">
+Properties p = new Properties();
+p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+p.put(ProducerConfig.ACKS_CONFIG, "all");
+p.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "zstd");
+p.put(ProducerConfig.LINGER_MS_CONFIG, 20);
+
+KafkaProducer<String, String> producer = new KafkaProducer<>(p);     // thread-safe, dùng chung
+producer.send(new ProducerRecord<>("orders.created", order.shop(), json), (meta, ex) -> {
+    if (ex != null) log.error("send failed", ex);
+    else log.debug("p{}@{}", meta.partition(), meta.offset());
+});
+</pre>
+<pre data-lang="java">
+Properties c = new Properties();
+c.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+c.put(ConsumerConfig.GROUP_ID_CONFIG, "risk");
+c.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, "consumer");             // giao thức rebalance mới
+c.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+c.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+c.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+c.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+
+try (var consumer = new KafkaConsumer<String, String>(c)) {           // KHÔNG thread-safe: một thread một consumer
+    consumer.subscribe(List.of("orders.created"));
+    while (running) {
+        ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500));
+        for (ConsumerRecord<String, String> r : records) {
+            risk.score(r.key(), r.value());
+        }
+        consumer.commitSync();                                       // at-least-once
+    }
+}
+// dừng an toàn từ thread khác: consumer.wakeup() → poll ném WakeupException
+</pre>
+<h3>Spring Kafka</h3>
+<pre data-lang="java">
+@Component
+class OrderListener {
+    @KafkaListener(topics = "orders.created", groupId = "risk", concurrency = "3")
+    void on(ConsumerRecord<String, OrderEvent> record) {
+        risk.score(record.value());
+    }
+}
+
+kafkaTemplate.send("orders.created", event.shop(), event);   // KafkaTemplate<String, OrderEvent>
+</pre>
+<h3>Kafka Streams</h3>
+<p>Thư viện xử lý luồng chạy ngay trong ứng dụng Java (không cần cluster riêng): filter, join, aggregate, window, có state store và exactly-once.</p>
+<pre data-lang="java">
+StreamsBuilder b = new StreamsBuilder();
+b.stream("orders.created", Consumed.with(Serdes.String(), orderSerde))      // key = shop
+ .filter((shop, order) -> order.flagged())
+ .groupByKey()
+ .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofMinutes(5)))
+ .count()
+ .toStream((windowedShop, count) -> windowedShop.key())
+ .filter((shop, count) -> count >= 10)
+ .to("alerts.fraud-burst", Produced.with(Serdes.String(), Serdes.Long()));
+
+Properties s = new Properties();
+s.put(StreamsConfig.APPLICATION_ID_CONFIG, "fraud-burst-detector");
+s.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+s.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE_V2);
+new KafkaStreams(b.build(), s).start();
+</pre>
+</section>
+
+<section class="doc" id="k-p-key" data-group="Patterns">
+<h2>Chọn key và thiết kế topic</h2>
+<ul>
+  <li><strong>Key = thực thể cần giữ thứ tự</strong>: <c>orderId</c>, <c>shop</c>, <c>customerId</c>. Mọi sự kiện của cùng thực thể vào cùng partition, xử lý tuần tự.</li>
+  <li>Tránh key quá "nóng" (một shop chiếm 50% traffic) gây lệch tải partition. Có thể ghép key: <c>shop:orderId</c> khi chỉ cần thứ tự theo đơn.</li>
+  <li>Đặt tên topic theo <c>&lt;domain&gt;.&lt;sự kiện&gt;</c> hoặc <c>&lt;domain&gt;.&lt;thực thể&gt;.v1</c>; đổi schema không tương thích thì tạo topic phiên bản mới.</li>
+  <li>Dùng schema (Avro/Protobuf/JSON Schema + Schema Registry) để producer và consumer tiến hóa độc lập mà không làm vỡ nhau.</li>
+  <li>Sự kiện nên tự đủ thông tin (event-carried state) để consumer không phải gọi ngược lại service gốc.</li>
+</ul>
+</section>
+
+<section class="doc" id="k-p-retry" data-group="Patterns">
+<h2>Retry topic và dead-letter topic</h2>
+<p>Kafka không có nack/requeue: nếu một record lỗi mà không commit, consumer bị kẹt ở đó và cả partition dừng lại. Giải pháp là chuyển record lỗi sang topic khác và commit để đi tiếp.</p>
+<pre data-lang="text">
+orders.created ─lỗi─► orders.created-retry-1 (chờ 1s) ─lỗi─► orders.created-retry-2 (chờ 10s) ─lỗi─► orders.created-dlt
+      ▲                         │                                   │
+      └──── thành công: commit ─┴───────────────────────────────────┘     dlt: lưu lại, cảnh báo, xử lý tay
+</pre>
+<pre data-lang="java">
+// Spring Kafka tự tạo retry topic + DLT
+@RetryableTopic(attempts = "4", backoff = @Backoff(delay = 1000, multiplier = 10),
+                exclude = { ValidationException.class })          // lỗi vĩnh viễn: thẳng sang DLT
+@KafkaListener(topics = "orders.created", groupId = "risk")
+void on(OrderEvent e) { risk.score(e); }
+
+@DltHandler
+void dlt(OrderEvent e, @Header(KafkaHeaders.EXCEPTION_MESSAGE) String error) {
+    alerts.send("DLT: " + e.orderId() + " " + error);
+}
+</pre>
+<p>Ở NestJS, tự publish sang topic <c>*.retry</c> / <c>*.dlt</c> kèm header số lần thử và lỗi, rồi commit offset gốc. Retry topic làm mất thứ tự theo key; nếu thứ tự quan trọng, hãy retry tại chỗ vài lần (backoff ngắn) trước khi đẩy sang DLT.</p>
+</section>
+
+<section class="doc" id="k-p-eos" data-group="Patterns">
+<h2>Consume–transform–produce exactly-once</h2>
+<pre data-lang="java">
+producerProps.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "risk-scorer-" + instanceId);
+consumerProps.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
+consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+
+producer.initTransactions();
+while (running) {
+    var records = consumer.poll(Duration.ofMillis(500));
+    if (records.isEmpty()) continue;
+    producer.beginTransaction();
+    try {
+        Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
+        for (var r : records) {
+            producer.send(new ProducerRecord<>("orders.scored", r.key(), score(r.value())));
+            offsets.put(new TopicPartition(r.topic(), r.partition()), new OffsetAndMetadata(r.offset() + 1));
+        }
+        producer.sendOffsetsToTransaction(offsets, consumer.groupMetadata());   // commit input cùng output
+        producer.commitTransaction();
+    } catch (ProducerFencedException e) {
+        producer.close();                    // có instance khác cùng transactional.id: dừng
+        throw e;
+    } catch (KafkaException e) {
+        producer.abortTransaction();
+        rewindToCommitted(consumer);         // seek về offset đã commit rồi xử lý lại
+    }
+}
+</pre>
+<p>Kafka Streams làm sẵn toàn bộ việc này khi đặt <c>processing.guarantee=exactly_once_v2</c>.</p>
+</section>
+
+<section class="doc" id="k-p-outbox" data-group="Patterns">
+<h2>Outbox + CDC và idempotent consumer</h2>
+<p>Ghi DB rồi gửi Kafka có thể lệch nhau (dual write). Pattern chuẩn: ghi sự kiện vào bảng/collection <c>outbox</c> trong cùng transaction với dữ liệu; <strong>Debezium</strong> (Kafka Connect) đọc change log của DB (binlog, WAL, MongoDB change stream) và đẩy vào Kafka. Không cần code relay tự viết như ở <a href="#p-outbox">tab NestJS</a>.</p>
+<pre data-lang="json">
+{
+  "name": "orders-outbox",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "db", "database.dbname": "shop", "topic.prefix": "shop",
+    "table.include.list": "public.outbox",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.route.by.field": "aggregate_type"
+  }
+}
+</pre>
+<p>Phía consumer: at-least-once nên phải chống trùng. Lưu <c>(topic, partition, offset)</c> hoặc <c>eventId</c> vào bảng processed với unique key trong cùng transaction với kết quả xử lý, hoặc dùng upsert theo khóa nghiệp vụ.</p>
+</section>
+
+<section class="doc" id="k-p-state" data-group="Patterns">
+<h2>Compacted topic làm bảng trạng thái</h2>
+<p>Publish trạng thái mới nhất của mỗi thực thể với key = id vào topic compacted. Service khác đọc topic từ đầu lúc khởi động để dựng cache cục bộ, rồi tiếp tục cập nhật theo sự kiện mới, không cần gọi API service gốc. Kafka Streams gọi đây là <c>KTable</c>/<c>GlobalKTable</c>.</p>
+<pre data-lang="java">
+GlobalKTable<String, ShopSettings> settings =
+    builder.globalTable("shop.settings", Consumed.with(Serdes.String(), settingsSerde));
+
+builder.stream("visits", Consumed.with(Serdes.String(), visitSerde))
+    .join(settings, (visitId, visit) -> visit.shop(),                 // tra cấu hình shop cho mỗi visit
+          (visit, cfg) -> evaluate(visit, cfg))
+    .to("visits.evaluated");
+</pre>
+<p>Xóa một thực thể: gửi tombstone (key + value <c>null</c>).</p>
+</section>
+
+<section class="doc" id="k-checklist" data-group="Tra cứu">
+<h2>Checklist production</h2>
+<ul>
+  <li>Ít nhất 3 broker; topic quan trọng <c>replication.factor=3</c>, <c>min.insync.replicas=2</c>, producer <c>acks=all</c>.</li>
+  <li>Giữ <c>unclean.leader.election.enable=false</c> (mặc định) để không mất dữ liệu khi failover.</li>
+  <li>Chọn số partition theo thông lượng mục tiêu và số consumer tối đa; khó giảm về sau.</li>
+  <li>Consumer tắt auto-commit cho việc quan trọng, xử lý idempotent, có retry topic + DLT.</li>
+  <li>Theo dõi <strong>consumer lag</strong> theo group/partition; cảnh báo khi lag tăng liên tục.</li>
+  <li>Dùng schema registry; quy định tương thích (BACKWARD) cho từng topic.</li>
+  <li>Bật TLS + SASL, ACL theo từng service; không để <c>auto.create.topics.enable</c> ở production.</li>
+  <li>Client mới dùng <c>group.protocol=consumer</c>; dùng <c>group.instance.id</c> cho deployment rolling ít rebalance.</li>
+</ul>
+<h3>Nguồn</h3>
+<ul>
+  <li><a href="https://kafka.apache.org/quickstart" target="_blank" rel="noopener">Kafka quickstart</a> · <a href="https://kafka.apache.org/community/downloads/" target="_blank" rel="noopener">Downloads</a> · <a href="https://kafka.apache.org/44/design/design/" target="_blank" rel="noopener">Design</a></li>
+  <li><a href="https://kafka.apache.org/44/configuration/producer-configs/" target="_blank" rel="noopener">Producer configs</a> · <a href="https://kafka.apache.org/44/configuration/consumer-configs/" target="_blank" rel="noopener">Consumer configs</a> · <a href="https://kafka.apache.org/44/getting-started/upgrade/" target="_blank" rel="noopener">Upgrade notes 4.x</a></li>
+  <li><a href="https://docs.spring.io/spring-kafka/reference/" target="_blank" rel="noopener">Spring for Apache Kafka</a> · <a href="https://debezium.io/documentation/" target="_blank" rel="noopener">Debezium</a></li>
+</ul>
+</section>

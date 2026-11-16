@@ -1,0 +1,417 @@
+</div>
+<div class="panel" data-panel="redis" role="tabpanel" aria-labelledby="tab-redis" hidden>
+
+<div class="hero">
+  <p class="eyebrow">Tổng hợp từ redis.io/docs (Redis Open Source 8.x)</p>
+  <h1>Sổ tay Redis</h1>
+  <p class="lead">Kho dữ liệu trong bộ nhớ dùng làm cache, khóa phân tán, rate limit, hàng đợi, bảng xếp hạng. Có kiểu dữ liệu và lệnh, persistence, eviction, cluster, và các pattern kèm ví dụ cho NestJS (ioredis) và Java (Lettuce, Jedis, Spring, Redisson).</p>
+  <div class="stats"><span><b>__SECTIONS_redis__</b> chủ đề</span><span><b>__CODES_redis__</b> ví dụ code</span><span>Redis Open Source <b>8.x</b></span></div>
+</div>
+
+<section class="doc" id="rd-tong-quan" data-group="Khái niệm">
+<h2>Redis là gì</h2>
+<p>Redis lưu dữ liệu trong RAM với cấu trúc dữ liệu phong phú (không chỉ key-value chuỗi), nên mỗi thao tác thường chỉ tốn micro-giây. Lệnh được thực thi tuần tự trên một luồng chính, nên từng lệnh là <strong>nguyên tử</strong>.</p>
+<ul>
+  <li><strong>Redis 8</strong> gộp các tính năng trước đây là module (JSON, Query Engine/Search, time series, kiểu xác suất như Bloom, Top-K, t-digest) và thêm <strong>vector set</strong>. Từ 8.0, Redis Open Source có thêm lựa chọn giấy phép AGPLv3.</li>
+  <li><strong>Valkey</strong> là bản fork mã nguồn mở (giấy phép BSD) do Linux Foundation duy trì, tương thích giao thức với Redis 7.2; client như ioredis, Lettuce dùng được cho cả hai.</li>
+</ul>
+<pre data-lang="bash">
+docker run -d --name redis -p 6379:6379 redis:8
+redis-cli ping                 # PONG
+redis-cli --latency            # đo độ trễ
+redis-cli INFO memory
+</pre>
+</section>
+
+<section class="doc" id="rd-types" data-group="Khái niệm">
+<h2>Kiểu dữ liệu</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Kiểu</th><th>Lệnh chính</th><th>Dùng cho</th></tr></thead>
+<tbody>
+<tr><td>String</td><td><c>SET</c>, <c>GET</c>, <c>INCR</c>, <c>MGET</c></td><td>Cache JSON, bộ đếm, cờ, khóa</td></tr>
+<tr><td>Hash</td><td><c>HSET</c>, <c>HGET</c>, <c>HINCRBY</c>, <c>HGETALL</c></td><td>Object nhiều field (cấu hình shop, session)</td></tr>
+<tr><td>List</td><td><c>LPUSH</c>, <c>RPOP</c>, <c>BLMOVE</c>, <c>LRANGE</c></td><td>Hàng đợi đơn giản, N mục gần nhất</td></tr>
+<tr><td>Set</td><td><c>SADD</c>, <c>SISMEMBER</c>, <c>SINTER</c></td><td>Tập duy nhất: IP bị chặn, tag</td></tr>
+<tr><td>Sorted set</td><td><c>ZADD</c>, <c>ZRANGE</c>, <c>ZINCRBY</c>, <c>ZREMRANGEBYSCORE</c></td><td>Bảng xếp hạng, cửa sổ thời gian, hàng đợi lịch</td></tr>
+<tr><td>Stream</td><td><c>XADD</c>, <c>XREADGROUP</c>, <c>XACK</c></td><td>Log sự kiện có consumer group</td></tr>
+<tr><td>Bitmap / Bitfield</td><td><c>SETBIT</c>, <c>BITCOUNT</c></td><td>Đánh dấu theo ngày, user hoạt động</td></tr>
+<tr><td>HyperLogLog</td><td><c>PFADD</c>, <c>PFCOUNT</c></td><td>Đếm số phần tử khác nhau gần đúng (12KB/khóa)</td></tr>
+<tr><td>Geospatial</td><td><c>GEOADD</c>, <c>GEOSEARCH</c></td><td>Tìm theo bán kính</td></tr>
+<tr><td>JSON</td><td><c>JSON.SET</c>, <c>JSON.GET</c></td><td>Document lồng nhau, sửa từng phần</td></tr>
+<tr><td>Bloom / Cuckoo / Top-K…</td><td><c>BF.ADD</c>, <c>BF.EXISTS</c></td><td>"Đã thấy chưa?" với bộ nhớ nhỏ</td></tr>
+<tr><td>Vector set</td><td><c>VADD</c>, <c>VSIM</c></td><td>Tìm kiếm tương đồng (embedding)</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="rd-commands" data-group="Khái niệm">
+<h2>Lệnh cốt lõi</h2>
+<pre data-lang="bash">
+SET settings:demo '{"plan":"pro"}' EX 300        # có TTL 300 giây
+SET lock:sync tokenA NX PX 30000                 # chỉ đặt nếu chưa tồn tại (dùng làm khóa)
+SET counter 10 GET                               # đặt và trả giá trị cũ
+INCR visits:2026-11-16                           # nguyên tử
+EXPIRE visits:2026-11-16 172800
+TTL settings:demo                                # còn bao nhiêu giây; -1 không hạn; -2 không tồn tại
+
+SCAN 0 MATCH settings:* COUNT 1000               # duyệt key theo từng đợt; KHÔNG dùng KEYS ở production
+UNLINK big:key                                   # xóa không chặn (giải phóng bộ nhớ ở luồng nền)
+
+HSET shop:demo plan pro country VN
+HEXPIRE shop:demo 3600 FIELDS 1 country          # TTL cho từng field (7.4+)
+</pre>
+<h3>Pipeline, transaction, script</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Cơ chế</th><th>Làm gì</th><th>Khi nào</th></tr></thead>
+<tbody>
+<tr><td>Pipeline</td><td>Gửi nhiều lệnh một lượt, giảm round-trip; không nguyên tử</td><td>Ghi/đọc hàng loạt</td></tr>
+<tr><td><c>MULTI</c> / <c>EXEC</c></td><td>Chạy nhóm lệnh liền một mạch; không rollback khi một lệnh lỗi</td><td>Ghi nhiều key cùng lúc</td></tr>
+<tr><td><c>WATCH</c></td><td>Optimistic lock: <c>EXEC</c> thất bại nếu key bị đổi</td><td>Đọc rồi ghi có điều kiện</td></tr>
+<tr><td>Lua <c>EVAL</c> / Functions (<c>FCALL</c>)</td><td>Logic chạy nguyên tử ngay trên server</td><td>Đọc-kiểm tra-ghi phức tạp: rate limit, giải phóng khóa</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="doc" id="rd-messaging" data-group="Khái niệm">
+<h2>Pub/Sub và Streams</h2>
+<p><strong>Pub/Sub</strong>: <c>PUBLISH channel msg</c> gửi tới mọi client đang <c>SUBSCRIBE</c>; client offline là mất. Hợp với tín hiệu tức thời như xóa cache cục bộ trên mọi instance. Trên cluster dùng sharded pub/sub (<c>SPUBLISH</c>/<c>SSUBSCRIBE</c>).</p>
+<p><strong>Streams</strong>: log bền có consumer group, giống Kafka thu nhỏ trong Redis.</p>
+<pre data-lang="bash">
+XGROUP CREATE visits writers $ MKSTREAM                    # tạo group, đọc từ message mới
+XADD visits MAXLEN ~ 1000000 * shop demo ip 1.2.3.4         # ~ = cắt gần đúng, nhanh hơn
+XREADGROUP GROUP writers c1 COUNT 100 BLOCK 5000 STREAMS visits >   # > = message chưa giao cho ai
+XACK visits writers 1731722400000-0
+XPENDING visits writers                                     # message đã giao mà chưa ack
+XAUTOCLAIM visits writers c2 60000 0-0 COUNT 100            # lấy lại message treo quá 60s
+</pre>
+</section>
+
+<section class="doc" id="rd-persistence" data-group="Vận hành">
+<h2>Persistence và eviction</h2>
+<div class="table-wrap"><table>
+<thead><tr><th></th><th>RDB</th><th>AOF</th></tr></thead>
+<tbody>
+<tr><td>Cách lưu</td><td>Snapshot định kỳ (<c>save 60 1000</c>), fork + copy-on-write</td><td>Ghi log mọi lệnh ghi (<c>appendonly yes</c>)</td></tr>
+<tr><td>Mất dữ liệu khi sập</td><td>Vài phút gần nhất</td><td>Tối đa ~1 giây với <c>appendfsync everysec</c> (mặc định, được khuyên dùng)</td></tr>
+<tr><td>Khởi động lại</td><td>Nhanh</td><td>Chậm hơn</td></tr>
+</tbody></table></div>
+<p>Bật cả hai thì khi khởi động Redis đọc AOF vì đầy đủ hơn. Redis làm cache thuần có thể tắt persistence.</p>
+<h3>Eviction khi đầy bộ nhớ</h3>
+<pre data-lang="bash">
+maxmemory 2gb
+maxmemory-policy allkeys-lru     # cache: bỏ key ít dùng gần đây nhất
+</pre>
+<div class="table-wrap"><table>
+<thead><tr><th>Policy</th><th>Hành vi</th></tr></thead>
+<tbody>
+<tr><td><c>noeviction</c> (mặc định)</td><td>Báo lỗi khi ghi. Dùng khi Redis chứa dữ liệu không được mất (queue, khóa).</td></tr>
+<tr><td><c>allkeys-lru</c> / <c>allkeys-lfu</c></td><td>Bỏ key ít dùng gần đây / ít dùng nhất trong mọi key. Lựa chọn cho cache.</td></tr>
+<tr><td><c>volatile-lru</c> / <c>volatile-lfu</c> / <c>volatile-ttl</c></td><td>Chỉ bỏ key có TTL. Không key nào có TTL thì giống noeviction.</td></tr>
+<tr><td><c>allkeys-random</c> / <c>volatile-random</c></td><td>Bỏ ngẫu nhiên.</td></tr>
+</tbody></table></div>
+<div class="note tip"><span class="nt">Tách vai trò</span><p>Không trộn cache (cho phép mất) với queue/khóa (không được mất) trên cùng instance với <c>allkeys-lru</c>: Redis có thể xóa mất job của BullMQ. Dùng hai instance hoặc <c>noeviction</c> cho instance chứa queue.</p></div>
+</section>
+
+<section class="doc" id="rd-ha" data-group="Vận hành">
+<h2>Replication, Sentinel và Cluster</h2>
+<ul>
+  <li><strong>Replication</strong>: replica sao chép bất đồng bộ từ master; đọc được từ replica (có thể hơi cũ). <c>WAIT</c> chờ N replica nhận ghi.</li>
+  <li><strong>Sentinel</strong>: giám sát master, tự failover sang replica, cho client biết master mới. Hợp khi dữ liệu vừa một máy.</li>
+  <li><strong>Cluster</strong>: chia dữ liệu theo <strong>16384 hash slot</strong> (CRC16(key) mod 16384) trên nhiều master, tối thiểu 3 master (khuyên 3 master + 3 replica).</li>
+</ul>
+<p>Lệnh nhiều key (MGET, MULTI, Lua) trên cluster chỉ chạy khi mọi key cùng slot, nếu không sẽ lỗi <c>CROSSSLOT</c>. Dùng <strong>hash tag</strong>: chỉ phần trong <c>{'{'}…{'}'}</c> được băm.</p>
+<pre data-lang="bash">
+SET rl:{shop-1}:minute 1
+SET rl:{shop-1}:hour 1          # cùng slot với key trên nhờ {shop-1}
+</pre>
+</section>
+
+<section class="doc" id="rd-perf" data-group="Vận hành">
+<h2>Hiệu năng và anti-pattern</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Vấn đề</th><th>Thay bằng</th></tr></thead>
+<tbody>
+<tr><td><c>KEYS *</c> trên production (chặn server)</td><td><c>SCAN</c> theo đợt; tốt hơn là lưu danh sách key cần thiết trong một set</td></tr>
+<tr><td>Big key (hash/list hàng triệu phần tử, string vài MB)</td><td>Chia nhỏ theo bucket; xóa bằng <c>UNLINK</c>; tìm bằng <c>redis-cli --bigkeys</c></td></tr>
+<tr><td><c>HGETALL</c>/<c>SMEMBERS</c> trên tập lớn</td><td><c>HSCAN</c>/<c>SSCAN</c>, hoặc chỉ lấy field cần</td></tr>
+<tr><td>Hot key (một key nhận phần lớn traffic)</td><td>Cache cục bộ trong process, client-side caching, nhân bản key</td></tr>
+<tr><td>Mở connection mỗi request</td><td>Một client dùng lâu dài (ioredis/Lettuce multiplex) hoặc pool (Jedis)</td></tr>
+<tr><td>Nhiều lệnh nhỏ tuần tự</td><td>Pipeline, <c>MGET</c>/<c>MSET</c></td></tr>
+<tr><td>Key không TTL tích tụ mãi</td><td>Luôn đặt TTL cho cache, bộ đếm theo thời gian</td></tr>
+</tbody></table></div>
+<p>Đặt tên key theo dạng <c>&lt;loại&gt;:&lt;id&gt;:&lt;phần&gt;</c>, ví dụ <c>settings:shop-1</c>, <c>rl:ip:1.2.3.4</c>. Dùng ACL để mỗi ứng dụng có user riêng, chỉ được truy cập prefix và lệnh cần thiết.</p>
+</section>
+
+<section class="doc" id="rd-nest" data-group="Sử dụng">
+<h2>Dùng trong NestJS (ioredis)</h2>
+<pre data-lang="ts" data-file="src/redis/redis.module.ts">
+import Redis from 'ioredis';
+
+export const REDIS = Symbol('REDIS');
+
+@Global()
+@Module({
+  providers: [{
+    provide: REDIS,
+    inject: [ConfigService],
+    useFactory: (c: ConfigService) => {
+      const client = new Redis(c.getOrThrow('REDIS_URL'), {
+        maxRetriesPerRequest: 3,
+        enableAutoPipelining: true,             // tự gom lệnh cùng vòng event loop
+      });
+      client.on('error', (e) => Logger.error(e.message, 'Redis'));  // thiếu listener → crash khi mất kết nối
+      return client;
+    },
+  }],
+  exports: [REDIS],
+})
+export class RedisModule implements OnApplicationShutdown {
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+  async onApplicationShutdown() { await this.redis.quit(); }
+}
+</pre>
+<pre data-lang="ts">
+@Injectable()
+export class VisitCounter {
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  async hit(shop: string) {
+    const day = new Date().toISOString().slice(0, 10);
+    const [[, count]] = (await this.redis.multi()
+      .incr(`visits:${shop}:${day}`)
+      .expire(`visits:${shop}:${day}`, 2 * 86_400)
+      .exec())!;
+    return count as number;
+  }
+}
+</pre>
+<p>Các module Nest khác dùng Redis: <c>@nestjs/cache-manager</c> + <c>@keyv/redis</c> (<a href="#caching">Caching</a>), <c>@nestjs/bullmq</c> (<a href="#queues">Queues</a>), storage Redis cho <c>@nestjs/throttler</c>, <c>@socket.io/redis-adapter</c> cho WebSocket nhiều instance. Cluster: <c>new Redis.Cluster([{'{'} host, port {'}'}])</c>.</p>
+</section>
+
+<section class="doc" id="rd-java" data-group="Sử dụng">
+<h2>Dùng trong Java</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Client</th><th>Đặc điểm</th></tr></thead>
+<tbody>
+<tr><td>Lettuce</td><td>Netty, non-blocking, một connection dùng chung cho nhiều thread; mặc định của Spring Data Redis</td></tr>
+<tr><td>Jedis</td><td>Đơn giản, đồng bộ; <c>JedisPooled</c> tự quản lý pool</td></tr>
+<tr><td>Redisson</td><td>Cấu trúc dữ liệu phân tán cấp cao: <c>RLock</c>, <c>RRateLimiter</c>, <c>RMap</c> có TTL</td></tr>
+</tbody></table></div>
+<pre data-lang="java">
+// Jedis
+JedisPooled jedis = new JedisPooled("localhost", 6379);
+jedis.set("settings:demo", json, SetParams.setParams().ex(300));
+long n = jedis.incr("visits:demo:2026-11-16");
+
+// Lettuce
+RedisClient client = RedisClient.create("redis://localhost:6379");
+StatefulRedisConnection<String, String> conn = client.connect();     // thread-safe, dùng chung
+RedisCommands<String, String> sync = conn.sync();
+sync.set("lock:sync", token, SetArgs.Builder.nx().px(30_000));
+</pre>
+<h3>Spring Data Redis và Spring Cache</h3>
+<pre data-lang="java">
+@Service
+class SettingsService {
+    private final StringRedisTemplate redis;
+    SettingsService(StringRedisTemplate redis) { this.redis = redis; }
+
+    void bump(String shop) {
+        redis.opsForValue().increment("visits:" + shop);
+        redis.opsForZSet().incrementScore("leaderboard:blocked", shop, 1);
+    }
+
+    @Cacheable(cacheNames = "settings", key = "#shop")          // cache-aside tự động
+    public Settings get(String shop) { return repo.find(shop); }
+
+    @CacheEvict(cacheNames = "settings", key = "#shop")
+    public void update(String shop, Settings s) { repo.save(shop, s); }
+}
+// application.yml: spring.cache.type=redis, spring.cache.redis.time-to-live=5m
+</pre>
+<h3>Redisson lock</h3>
+<pre data-lang="java">
+RLock lock = redisson.getLock("lock:sync-usage");
+if (lock.tryLock(0, 55, TimeUnit.SECONDS)) {       // không chờ, tự hết hạn sau 55s
+    try { usage.sync(); } finally { lock.unlock(); }
+}
+</pre>
+</section>
+
+<section class="doc" id="rd-p-cache" data-group="Patterns">
+<h2>Cache-aside và chống cache stampede</h2>
+<p>Đọc cache trước; miss thì đọc DB rồi ghi cache với TTL; khi ghi dữ liệu thì xóa cache. Ba vấn đề cần xử lý:</p>
+<ul>
+  <li><strong>Stampede</strong>: key nóng hết hạn, hàng trăm request cùng lúc đánh vào DB. Chỉ cho một request tính lại (khóa ngắn hoặc single-flight trong process).</li>
+  <li><strong>Hết hạn đồng loạt</strong>: thêm jitter ngẫu nhiên vào TTL.</li>
+  <li><strong>Penetration</strong>: truy vấn key không tồn tại liên tục đi thẳng vào DB. Cache cả kết quả "không có" với TTL ngắn, hoặc dùng Bloom filter.</li>
+</ul>
+<pre data-lang="ts">
+@Injectable()
+export class CacheAside {
+  private readonly inflight = new Map<string, Promise<unknown>>();   // single-flight trong process
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  async get<T>(key: string, ttlSec: number, load: () => Promise<T | null>): Promise<T | null> {
+    const hit = await this.redis.get(key);
+    if (hit !== null) return hit === '__null__' ? null : (JSON.parse(hit) as T);
+
+    const running = this.inflight.get(key);
+    if (running) return running as Promise<T | null>;
+
+    const p = (async () => {
+      const value = await load();
+      const ttl = value === null ? 30 : ttlSec + Math.floor(Math.random() * ttlSec * 0.1);  // jitter 10%
+      await this.redis.set(key, value === null ? '__null__' : JSON.stringify(value), 'EX', ttl);
+      return value;
+    })().finally(() => this.inflight.delete(key));
+
+    this.inflight.set(key, p);
+    return p;
+  }
+
+  invalidate(key: string) { return this.redis.unlink(key); }
+}
+</pre>
+<p>Nhiều instance cùng giữ cache cục bộ (L1) thì publish sự kiện xóa qua Pub/Sub để mọi instance xóa bản trong RAM.</p>
+</section>
+
+<section class="doc" id="rd-p-lock" data-group="Patterns">
+<h2>Distributed lock</h2>
+<p><c>SET key token NX PX ttl</c> để lấy khóa; giải phóng bằng Lua kiểm tra token (chỉ chủ khóa mới xóa được). Ví dụ đầy đủ cho Nest ở <a href="#p-lock">tab NestJS</a>, cho Java ở mục Redisson phía trên.</p>
+<pre data-lang="lua">
+-- release.lua: KEYS[1] = lock key, ARGV[1] = token
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('del', KEYS[1])
+else
+  return 0
+end
+</pre>
+<div class="note warn"><span class="nt">Giới hạn</span><p>Khóa trên một Redis không an toàn tuyệt đối: master sập trước khi replica nhận key, hoặc tiến trình bị dừng (GC pause) quá TTL, đều có thể khiến hai nơi cùng giữ khóa. Redlock (nhiều node độc lập) giảm rủi ro nhưng vẫn còn tranh luận. Khi đúng đắn là bắt buộc (trừ tiền), thêm <strong>fencing token</strong> (số tăng dần kiểm tra ở DB) hoặc dùng ràng buộc unique/transaction của DB.</p></div>
+</section>
+
+<section class="doc" id="rd-p-ratelimit" data-group="Patterns">
+<h2>Rate limiting</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Thuật toán</th><th>Cấu trúc</th><th>Ưu / nhược</th></tr></thead>
+<tbody>
+<tr><td>Fixed window</td><td><c>INCR</c> + <c>EXPIRE</c> theo phút</td><td>Đơn giản, rẻ; cho phép gấp đôi giới hạn ở ranh giới cửa sổ</td></tr>
+<tr><td>Sliding window log</td><td>Sorted set timestamp</td><td>Chính xác; tốn bộ nhớ theo số request</td></tr>
+<tr><td>Token bucket</td><td>Hash (tokens, last) + Lua</td><td>Cho phép burst có kiểm soát; phổ biến cho API</td></tr>
+</tbody></table></div>
+<pre data-lang="ts">
+// fixed window
+async allowFixed(ip: string, limit = 100) {
+  const key = `rl:${ip}:${Math.floor(Date.now() / 60_000)}`;
+  const [[, count]] = (await this.redis.multi().incr(key).expire(key, 120).exec())!;
+  return (count as number) <= limit;
+}
+
+// sliding window: chạy nguyên tử bằng Lua
+const SLIDING = `
+local key, now, window, limit = KEYS[1], tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3])
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+if redis.call('ZCARD', key) >= limit then return 0 end
+redis.call('ZADD', key, now, ARGV[4])
+redis.call('PEXPIRE', key, window)
+return 1`;
+
+this.redis.defineCommand('slidingLimit', { numberOfKeys: 1, lua: SLIDING });
+
+async allowSliding(ip: string) {
+  const ok = await (this.redis as any).slidingLimit(`rl:sw:${ip}`, Date.now(), 60_000, 100, randomUUID());
+  return ok === 1;
+}
+</pre>
+<p>Java: Redisson <c>RRateLimiter</c> (<c>trySetRate(RateType.OVERALL, 100, Duration.ofMinutes(1))</c> rồi <c>tryAcquire()</c>), hoặc Bucket4j với backend Redis.</p>
+</section>
+
+<section class="doc" id="rd-p-structures" data-group="Patterns">
+<h2>Bảng xếp hạng, đếm duy nhất, hàng đợi lịch</h2>
+<pre data-lang="bash">
+# bảng xếp hạng shop bị tấn công nhiều nhất trong ngày
+ZINCRBY blocked:2026-11-16 1 demo.myshopify.com
+ZRANGE blocked:2026-11-16 0 9 REV WITHSCORES          # top 10
+
+# đếm visitor khác nhau gần đúng (sai số ~0.81%, 12KB mỗi key)
+PFADD uv:demo:2026-11-16 1.2.3.4 5.6.7.8
+PFCOUNT uv:demo:2026-11-16
+
+# hàng đợi hẹn giờ: score = thời điểm chạy
+ZADD scheduled 1731730000000 '{"job":"recheck","order":"1001"}'
+ZRANGE scheduled -inf 1731730000000 BYSCORE LIMIT 0 100   # lấy job đến hạn; xóa bằng ZREM (nên gói trong Lua)
+
+# đã thấy IP này chưa (Bloom filter, Redis 8)
+BF.RESERVE seen-ip 0.001 10000000
+BF.ADD seen-ip 1.2.3.4
+BF.EXISTS seen-ip 1.2.3.4
+</pre>
+</section>
+
+<section class="doc" id="rd-p-queue" data-group="Patterns">
+<h2>Hàng đợi tin cậy với Streams</h2>
+<pre data-lang="ts">
+@Injectable()
+export class VisitStreamWorker implements OnModuleInit, OnModuleDestroy {
+  private running = true;
+  private readonly name = `worker-${process.pid}`;
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  async onModuleInit() {
+    await this.redis.xgroup('CREATE', 'visits', 'writers', '$', 'MKSTREAM').catch((e) => {
+      if (!String(e).includes('BUSYGROUP')) throw e;           // group đã tồn tại
+    });
+    void this.loop();
+  }
+
+  onModuleDestroy() { this.running = false; }
+
+  private async loop() {
+    const reader = this.redis.duplicate();                      // lệnh BLOCK cần connection riêng
+    while (this.running) {
+      const res = (await reader.xreadgroup('GROUP', 'writers', this.name,
+        'COUNT', 100, 'BLOCK', 5000, 'STREAMS', 'visits', '>')) as [string, [string, string[]][]][] | null;
+      if (!res) continue;
+      for (const [, entries] of res) {
+        for (const [id, fields] of entries) {
+          await this.handle(fields);
+          await this.redis.xack('visits', 'writers', id);
+        }
+      }
+    }
+    await reader.quit();
+  }
+}
+
+// producer
+await redis.xadd('visits', 'MAXLEN', '~', 1_000_000, '*', 'shop', shop, 'ip', ip);
+</pre>
+<p>Định kỳ chạy <c>XAUTOCLAIM</c> để nhận lại message của worker đã chết; message có số lần giao (<c>XPENDING</c>) quá ngưỡng thì chuyển sang stream dead-letter. Cần nhiều tính năng (retry, delay, priority, UI) thì dùng BullMQ (Nest) hoặc Redisson <c>RReliableQueue</c>/RabbitMQ.</p>
+</section>
+
+<section class="doc" id="rd-p-session" data-group="Patterns">
+<h2>Session, idempotency key, feature flag</h2>
+<ul>
+  <li><strong>Session</strong>: hash <c>sess:&lt;id&gt;</c> với TTL trượt (gia hạn mỗi request). Spring Session và <c>connect-redis</c> (Express) làm sẵn.</li>
+  <li><strong>Idempotency key</strong>: <c>SET idem:&lt;key&gt; PENDING NX EX 86400</c> → xử lý → ghi kết quả. Ví dụ đầy đủ ở <a href="#p-idempotency">tab NestJS</a>.</li>
+  <li><strong>Feature flag / cấu hình nóng</strong>: hash <c>flags</c>, cache cục bộ vài giây, Pub/Sub để báo thay đổi.</li>
+  <li><strong>Deduplicate sự kiện</strong>: <c>SET seen:&lt;eventId&gt; 1 NX EX 604800</c>; trả về null nghĩa là đã xử lý.</li>
+</ul>
+</section>
+
+<section class="doc" id="rd-checklist" data-group="Tra cứu">
+<h2>Checklist production</h2>
+<ul>
+  <li>Đặt <c>maxmemory</c> và policy phù hợp vai trò (cache: <c>allkeys-lru/lfu</c>; queue/khóa: <c>noeviction</c>), chừa RAM cho fork và buffer.</li>
+  <li>Cache luôn có TTL; key có quy ước đặt tên và prefix theo ứng dụng.</li>
+  <li>Không <c>KEYS</c>, không big key; theo dõi <c>SLOWLOG</c>, <c>INFO</c>, tỉ lệ hit, số client kết nối.</li>
+  <li>HA bằng Sentinel hoặc Cluster; client cấu hình đúng chế độ; hash tag cho thao tác nhiều key.</li>
+  <li>Bật ACL (user riêng cho mỗi ứng dụng), TLS, không mở cổng 6379 ra Internet.</li>
+  <li>Client: một connection dùng lâu dài, có listener lỗi, timeout và giới hạn retry.</li>
+  <li>Persistence: AOF <c>everysec</c> nếu dữ liệu quan trọng; sao lưu RDB định kỳ ra ngoài máy.</li>
+</ul>
+<h3>Nguồn</h3>
+<ul>
+  <li><a href="https://redis.io/docs/latest/develop/data-types/" target="_blank" rel="noopener">Redis data types</a> · <a href="https://redis.io/docs/latest/develop/data-types/streams/" target="_blank" rel="noopener">Streams</a> · <a href="https://redis.io/docs/latest/commands/set/" target="_blank" rel="noopener">SET</a></li>
+  <li><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">Persistence</a> · <a href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">Eviction</a> · <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/" target="_blank" rel="noopener">Cluster</a></li>
+  <li><a href="https://github.com/redis/ioredis" target="_blank" rel="noopener">ioredis</a> · <a href="https://redis.github.io/lettuce/" target="_blank" rel="noopener">Lettuce</a> · <a href="https://redisson.org/docs/" target="_blank" rel="noopener">Redisson</a></li>
+</ul>
+</section>

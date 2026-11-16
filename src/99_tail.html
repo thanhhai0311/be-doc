@@ -1,0 +1,93 @@
+</div>
+</main>
+</div>
+<a class="to-top" href="#top">↑ Đầu trang</a>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function () {
+  try { if (window.hljs) document.querySelectorAll('pre code[class*="language-"]').forEach(function (el) { hljs.highlightElement(el); }); } catch (e) {}
+
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var code = btn.parentElement.querySelector('code');
+      var text = code ? code.innerText : '';
+      var done = function () { btn.textContent = 'Đã chép'; setTimeout(function () { btn.textContent = 'Sao chép'; }, 1400); };
+      try {
+        navigator.clipboard.writeText(text).then(done, function () { selectText(code); });
+      } catch (e) { selectText(code); }
+    });
+  });
+  function selectText(el) { var r = document.createRange(); r.selectNodeContents(el); var s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+
+  var toc = document.getElementById('toc');
+  var toggle = document.getElementById('tocToggle');
+  var mq = window.matchMedia('(max-width: 960px)');
+  function syncToc() { toc.hidden = mq.matches; toggle.setAttribute('aria-expanded', 'false'); }
+  syncToc(); mq.addEventListener('change', syncToc);
+  toggle.addEventListener('click', function () { toc.hidden = !toc.hidden; toggle.setAttribute('aria-expanded', String(!toc.hidden)); });
+  toc.addEventListener('click', function (e) { if (e.target.closest('a') && mq.matches) { toc.hidden = true; toggle.setAttribute('aria-expanded', 'false'); } });
+
+  var tabs = document.querySelectorAll('.tab');
+  var active = 'nest';
+  function activate(name) {
+    active = name;
+    tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.tab === name)); });
+    document.querySelectorAll('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
+    document.querySelectorAll('[data-for]').forEach(function (n) { n.hidden = n.dataset.for.split(' ').indexOf(name) === -1; });
+    document.title = 'Sổ tay ' + ({ nest: 'NestJS', java: 'Java', rabbit: 'RabbitMQ', kafka: 'Kafka', redis: 'Redis' })[name];
+    try { localStorage.setItem('handbook-tab', name); } catch (e) {}
+    if (search.value) { search.value = ''; filter(); }
+  }
+  function fromHash() {
+    var id = decodeURIComponent(location.hash.slice(1));
+    var el = id && document.getElementById(id);
+    var panel = el && el.closest('[data-panel]');
+    if (panel) { if (panel.dataset.panel !== active) activate(panel.dataset.panel); el.scrollIntoView(); return true; }
+    return false;
+  }
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      activate(t.dataset.tab);
+      history.replaceState(null, '', '#' + ({ nest: 'tong-quan', java: 'j-tong-quan', rabbit: 'r-tong-quan', kafka: 'k-tong-quan', redis: 'rd-tong-quan' })[t.dataset.tab]);
+      window.scrollTo(0, 0);
+    });
+  });
+  window.addEventListener('hashchange', fromHash);
+
+  var search = document.getElementById('tocSearch');
+  var norm = function (s) { return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd'); };
+  search.addEventListener('input', filter);
+  function filter() {
+    var q = norm(search.value.trim());
+    document.querySelectorAll('.tocNav[data-for="' + active + '"] .toc-group').forEach(function (g) {
+      var any = false;
+      g.querySelectorAll('li').forEach(function (li) {
+        var sec = document.getElementById(li.dataset.target);
+        var hay = norm(li.textContent + ' ' + (q.length > 2 && sec ? sec.textContent : ''));
+        var ok = !q || hay.indexOf(q) !== -1;
+        li.hidden = !ok; if (ok) any = true;
+      });
+      g.hidden = !any;
+    });
+  }
+  if (!fromHash()) {
+    var saved = null;
+    try { saved = localStorage.getItem('handbook-tab'); } catch (e) {}
+    activate(['java', 'rabbit', 'kafka', 'redis'].indexOf(saved) !== -1 ? saved : 'nest');
+  }
+
+  var links = {};
+  document.querySelectorAll('.tocNav a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+  var current = null;
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) {
+        if (current) current.classList.remove('active');
+        current = links[en.target.id];
+        if (current) current.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-80px 0px -70% 0px' });
+  document.querySelectorAll('section.doc').forEach(function (s) { obs.observe(s); });
+})();
+</script>
