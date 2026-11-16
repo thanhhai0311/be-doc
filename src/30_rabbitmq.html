@@ -347,14 +347,16 @@ const res = await this.amqp.request<{ score: number }>({
 <section class="doc" id="r-checklist" data-group="Tra cứu">
 <h2>Checklist production</h2>
 <ul>
-  <li>Cụm số node lẻ (3, 5); <c>cluster_partition_handling = pause_minority</c>.</li>
+  <li>Cụm số node lẻ (3, 5): quorum queue cần đa số node. Từ 4.3 (bỏ Mnesia), <c>cluster_partition_handling</c> không còn tác dụng, hãy xóa khỏi cấu hình; bản ≤ 4.2 thì <c>pause_minority</c> an toàn hơn <c>ignore</c> (mặc định), không dùng cho cụm 2 node.</li>
   <li>Dùng quorum queue cho dữ liệu quan trọng; chỉ khai báo queue durable hoặc exclusive.</li>
   <li>Bật publisher confirm + manual ack; message persistent.</li>
   <li>Prefetch khoảng 100–300 (nhỏ hơn cho việc xử lý lâu).</li>
   <li>Mọi queue nghiệp vụ có DLX và giới hạn độ dài; cấu hình bằng policy.</li>
   <li>Connection dùng lâu dài, tách connection publish và consume; mỗi thread một channel; bật tự kết nối lại.</li>
   <li>Xóa user <c>guest</c>, mỗi ứng dụng một user, mỗi môi trường một vhost; bật TLS.</li>
-  <li><c>vm_memory_high_watermark.relative</c> 0.4–0.7; <c>disk_free_limit</c> đặt cỡ bằng mức watermark bộ nhớ (mặc định 50MB chỉ hợp dev).</li>
+  <li><c>vm_memory_high_watermark.relative</c> 0.4–0.7; <c>disk_free_limit</c> đặt cỡ bằng mức watermark bộ nhớ (mặc định 50MB quá thấp cho production). Alarm có hiệu lực toàn cụm: một node vượt ngưỡng là publisher ở mọi node bị chặn.</li>
+  <li>Heartbeat 5–20 giây; idle timeout của load balancer phải lớn hơn khoảng heartbeat.</li>
+  <li>Quorum queue luôn có DLX qua policy: vượt <c>delivery-limit</c> (mặc định 20) mà không có DLX thì message bị <strong>bỏ</strong>.</li>
   <li>Giám sát độ dài queue, số message chưa ack, tốc độ publish/deliver/ack (Prometheus plugin).</li>
 </ul>
 <h3>Nguồn</h3>

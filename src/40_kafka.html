@@ -307,6 +307,7 @@ void dlt(OrderEvent e, @Header(KafkaHeaders.EXCEPTION_MESSAGE) String error) {
     alerts.send("DLT: " + e.orderId() + " " + error);
 }
 </pre>
+<div class="note warn"><span class="nt">Spring Kafka</span><ul><li>Từ Spring Kafka 4.0, hậu tố DLT mặc định đổi từ <c>.DLT</c> thành <c>-dlt</c>; nâng cấp từ 3.x cần kiểm tra tên topic.</li><li><c>DefaultErrorHandler</c> mặc định thử lại 9 lần không chờ (<c>FixedBackOff(0, 9)</c>); lỗi deserialize/convert không được retry.</li><li><c>DeadLetterPublishingRecoverer</c> gửi vào cùng số partition: DLT phải có số partition ≥ topic gốc.</li><li><c>@RetryableTopic</c> không hỗ trợ batch listener và container transaction.</li></ul></div>
 <p>Ở NestJS, tự publish sang topic <c>*.retry</c> / <c>*.dlt</c> kèm header số lần thử và lỗi, rồi commit offset gốc. Retry topic làm mất thứ tự theo key; nếu thứ tự quan trọng, hãy retry tại chỗ vài lần (backoff ngắn) trước khi đẩy sang DLT.</p>
 </section>
 
@@ -379,7 +380,9 @@ builder.stream("visits", Consumed.with(Serdes.String(), visitSerde))
 <section class="doc" id="k-checklist" data-group="Tra cứu">
 <h2>Checklist production</h2>
 <ul>
-  <li>Ít nhất 3 broker; topic quan trọng <c>replication.factor=3</c>, <c>min.insync.replicas=2</c>, producer <c>acks=all</c>.</li>
+  <li>Ít nhất 3 broker; topic quan trọng <c>replication.factor=3</c>, <c>min.insync.replicas=2</c> (mặc định broker là 1, phải đặt tường minh), producer <c>acks=all</c>.</li>
+  <li>KRaft: 3 hoặc 5 controller trải trên các vùng lỗi khác nhau (2N+1 controller chịu được N lỗi).</li>
+  <li>Cảnh báo theo <c>UnderReplicatedPartitions</c>, <c>UnderMinIsrPartitionCount</c>, <c>OfflinePartitionsCount</c> (bình thường đều bằng 0) và <c>RequestHandlerAvgIdlePercent</c> &lt; 0.3.</li>
   <li>Giữ <c>unclean.leader.election.enable=false</c> (mặc định) để không mất dữ liệu khi failover.</li>
   <li>Chọn số partition theo thông lượng mục tiêu và số consumer tối đa; khó giảm về sau.</li>
   <li>Consumer tắt auto-commit cho việc quan trọng, xử lý idempotent, có retry topic + DLT.</li>
